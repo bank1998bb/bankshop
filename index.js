@@ -8,6 +8,11 @@ const config = {
 
 const app = express();
 
+// เพิ่มส่วนนี้เพื่อให้ปุ่ม Verify ของ LINE กดแล้วตอบกลับ status 200 (ไม่ติด 404)
+app.get('/webhook', (req, res) => {
+  res.status(200).send('OK');
+});
+
 app.post('/webhook', line.middleware(config), (req, res) => {
   Promise.all(req.body.events.map(handleEvent))
     .then((result) => res.json(result))
