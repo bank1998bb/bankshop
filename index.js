@@ -35,7 +35,7 @@ function normalizeText(text) {
 // ===============================
 // REPLY TEXT (สำหรับผู้ใช้พิมพ์ข้อความมา)
 // ===============================
-function getReplyText(userMessage) {
+function getReplyMessages(userMessage) {
   const text = normalizeText(userMessage);
 
   // ==========================================
@@ -53,12 +53,20 @@ function getReplyText(userMessage) {
   ]);
 
   if (true307Commands.has(text)) {
-    return `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
-           `🔥 แพ็กเกจ TRUE 307 บาท\n` +
-           `⚡ ความเร็วเน็ต: 10 Mbps\n` +
-           `📊 รายละเอียด: เน็ตลดสปีด จำกัดการใช้งาน 100 GB (ใช้งานได้ 30 วัน)\n` +
-           `🚀 การใช้งาน: ใช้งานได้ลื่นไหล ไม่มีสะดุดแน่นอนค่ะ!\n\n\n` +
-           `💡 สนใจรับแพ็กเกจนี้ แจ้งเบอร์โทรของคุณลูกค้าไว้ได้เลยนะคะ เดี๋ยว AI ส่งต่อให้แอดมินดูแลต่อทันทีค่ะ ✨📱`;
+    return [
+      {
+        type: 'text',
+        text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
+              `🔴 แพ็กเกจ TRUE 307 บาท\n` +
+              `⚡ ความเร็วเน็ต: 10 Mbps\n` +
+              `📊 รายละเอียด: เน็ตลดสปีด จำกัดการใช้งาน 100 GB (ใช้งานได้ 30 วัน)\n` +
+              `🚀 การใช้งาน: ใช้งานได้ลื่นไหล ไม่มีสะดุดแน่นอนค่ะ!`
+      },
+      {
+        type: 'text',
+        text: `💡 สนใจรับแพ็กเกจนี้ แจ้งเบอร์โทรของคุณลูกค้าไว้ได้เลยนะคะ เดี๋ยว AI ส่งต่อให้แอดมินดูแลต่อทันทีค่ะ ✨📱`
+      }
+    ];
   }
 
   // ==========================================
@@ -76,12 +84,20 @@ function getReplyText(userMessage) {
   ]);
 
   if (true357Commands.has(text)) {
-    return `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
-           `🔥 แพ็กเกจ TRUE 357 บาท\n` +
-           `⚡ ความเร็วเน็ต: 10 Mbps\n` +
-           `♾️ รายละเอียด: เน็ตไม่อั้น ไม่ลดสปีด (ใช้งานได้ 30 วัน)\n` +
-           `🚀 การใช้งาน: ใช้งานได้ลื่นไหล ไม่มีสะดุด คุ้มค่าสะใจแน่นอนค่ะ!\n\n\n` +
-           `💡 สนใจรับแพ็กเกจนี้ แจ้งเบอร์โทรของคุณลูกค้าไว้ได้เลยนะคะ เดี๋ยว AI ส่งต่อให้แอดมินดูแลต่อทันทีค่ะ ✨📱`;
+    return [
+      {
+        type: 'text',
+        text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
+              `🔴 แพ็กเกจ TRUE 357 บาท\n` +
+              `⚡ ความเร็วเน็ต: 10 Mbps\n` +
+              `♾️ รายละเอียด: เน็ตไม่อั้น ไม่ลดสปีด (ใช้งานได้ 30 วัน)\n` +
+              `🚀 การใช้งาน: ใช้งานได้ลื่นไหล ไม่มีสะดุด คุ้มค่าสะใจแน่นอนค่ะ!`
+      },
+      {
+        type: 'text',
+        text: `💡 สนใจรับแพ็กเกจนี้ แจ้งเบอร์โทรของคุณลูกค้าไว้ได้เลยนะคะ เดี๋ยว AI ส่งต่อให้แอดมินดูแลต่อทันทีค่ะ ✨📱`
+      }
+    ];
   }
 
   // ==========================================
@@ -99,12 +115,20 @@ function getReplyText(userMessage) {
   ]);
 
   if (ais300Commands.has(text)) {
-    return `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
-           `💚 แพ็กเกจ AIS 300 บาท\n` +
-           `⚡ ความเร็วเน็ต: 10 Mbps\n` +
-           `📊 รายละเอียด: เน็ตลดสปีด จำกัดการใช้งาน 100 GB (ใช้งานได้ 30 วัน)\n` +
-           `🚀 การใช้งาน: ใช้งานได้ลื่นไหล ไม่มีสะดุดค่ะ!\n\n\n` +
-           `💡 สนใจรับแพ็กเกจนี้ แจ้งเบอร์โทรของคุณลูกค้าไว้ได้เลยนะคะ เดี๋ยว AI ส่งต่อให้แอดมินดูแลต่อทันทีค่ะ ✨📱`;
+    return [
+      {
+        type: 'text',
+        text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
+              `🟢 แพ็กเกจ AIS 300 บาท\n` +
+              `⚡ ความเร็วเน็ต: 10 Mbps\n` +
+              `📊 รายละเอียด: เน็ตลดสปีด จำกัดการใช้งาน 100 GB (ใช้งานได้ 30 วัน)\n` +
+              `🚀 การใช้งาน: ใช้งานได้ลื่นไหล ไม่มีสะดุดค่ะ!`
+      },
+      {
+        type: 'text',
+        text: `💡 สนใจรับแพ็กเกจนี้ แจ้งเบอร์โทรของคุณลูกค้าไว้ได้เลยนะคะ เดี๋ยว AI ส่งต่อให้แอดมินดูแลต่อทันทีค่ะ ✨📱`
+      }
+    ];
   }
 
   // ==========================================
@@ -122,12 +146,20 @@ function getReplyText(userMessage) {
   ]);
 
   if (ais350Commands.has(text)) {
-    return `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
-           `💚 แพ็กเกจ AIS 350 บาท\n` +
-           `⚡ ความเร็วเน็ต: 10 Mbps\n` +
-           `♾️ รายละเอียด: เน็ตไม่อั้น ไม่ลดสปีด (ใช้งานได้ 30 วัน)\n` +
-           `🚀 การใช้งาน: ใช้งานได้ลื่นไหล ไม่มีสะดุด เต็มอิ่มจุใจค่ะ!\n\n\n` +
-           `💡 สนใจรับแพ็กเกจนี้ แจ้งเบอร์โทรของคุณลูกค้าไว้ได้เลยนะคะ เดี๋ยว AI ส่งต่อให้แอดมินดูแลต่อทันทีค่ะ ✨📱`;
+    return [
+      {
+        type: 'text',
+        text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
+              `🟢 แพ็กเกจ AIS 350 บาท\n` +
+              `⚡ ความเร็วเน็ต: 10 Mbps\n` +
+              `♾️ รายละเอียด: เน็ตไม่อั้น ไม่ลดสปีด (ใช้งานได้ 30 วัน)\n` +
+              `🚀 การใช้งาน: ใช้งานได้ลื่นไหล ไม่มีสะดุด เต็มอิ่มจุใจค่ะ!`
+      },
+      {
+        type: 'text',
+        text: `💡 สนใจรับแพ็กเกจนี้ แจ้งเบอร์โทรของคุณลูกค้าไว้ได้เลยนะคะ เดี๋ยว AI ส่งต่อให้แอดมินดูแลต่อทันทีค่ะ ✨📱`
+      }
+    ];
   }
 
   // ==========================================
@@ -142,7 +174,12 @@ function getReplyText(userMessage) {
   ]);
 
   if (renewCommands.has(text)) {
-    return '🤖 AI สมาร์ท: รับเรื่องต่อโปรโมชั่นให้เรียบร้อยค่ะ กำลังตามแอดมินใจดีมาดูแลต่อให้อย่างด่วนเลยนะคะ รอสักครู่นะคะ ⏳📅';
+    return [
+      {
+        type: 'text',
+        text: '🤖 AI สมาร์ท: รับเรื่องต่อโปรโมชั่นให้เรียบร้อยค่ะ กำลังตามแอดมินใจดีมาดูแลต่อให้อย่างด่วนเลยนะคะ รอสักครู่นะคะ ⏳📅'
+      }
+    ];
   }
 
   // ==========================================
@@ -158,7 +195,12 @@ function getReplyText(userMessage) {
   ]);
 
   if (adminCommands.has(text)) {
-    return '🤖 AI สมาร์ท: รับทราบค่ะ! แจ้งรายละเอียดหรือปัญหาที่พบไว้ได้เลยนะคะ เดี๋ยว AI ตามแอดมินตัวจริงมาช่วยดูแลคุณลูกค้าทันทีค่ะ 🛠️💬';
+    return [
+      {
+        type: 'text',
+        text: '🤖 AI สมาร์ท: รับทราบค่ะ! แจ้งรายละเอียดหรือปัญหาที่พบไว้ได้เลยนะคะ เดี๋ยว AI ตามแอดมินตัวจริงมาช่วยดูแลคุณลูกค้าทันทีค่ะ 🛠️💬'
+      }
+    ];
   }
 
   return null;
@@ -174,29 +216,43 @@ function handlePostback(event) {
 
   const data = normalizeText(event.postback.data);
 
-  const postbackReplies = {
-    // รองรับทั้งแบบระบุรหัส และแบบพิมพ์ข้อความสั่งการผ่านปุ่ม
-    'promotion_true_307': getReplyText('TRUE 307 บาท'),
-    'true 307': getReplyText('TRUE 307 บาท'),
-    'true 307 บาท': getReplyText('TRUE 307 บาท'),
+  const postbackMap = {
+    'promotion_true_307': 'TRUE 307 บาท',
+    'true 307': 'TRUE 307 บาท',
+    'true 307 บาท': 'TRUE 307 บาท',
 
-    'promotion_true_357': getReplyText('TRUE 357 บาท'),
-    'true 357': getReplyText('TRUE 357 บาท'),
-    'true 357 บาท': getReplyText('TRUE 357 บาท'),
+    'promotion_true_357': 'TRUE 357 บาท',
+    'true 357': 'TRUE 357 บาท',
+    'true 357 บาท': 'TRUE 357 บาท',
 
-    'promotion_ais_300': getReplyText('AIS 300 บาท'),
-    'ais 300': getReplyText('AIS 300 บาท'),
-    'ais 300 บาท': getReplyText('AIS 300 บาท'),
+    'promotion_ais_300': 'AIS 300 บาท',
+    'ais 300': 'AIS 300 บาท',
+    'ais 300 บาท': 'AIS 300 บาท',
 
-    'promotion_ais_350': getReplyText('AIS 350 บาท'),
-    'ais 350': getReplyText('AIS 350 บาท'),
-    'ais 350 บาท': getReplyText('AIS 350 บาท'),
-
-    'renew': '🤖 AI สมาร์ท: รับเรื่องต่อโปรโมชั่นให้เรียบร้อยค่ะ กำลังตามแอดมินใจดีมาดูแลต่อให้อย่างด่วนเลยนะคะ รอสักครู่นะคะ ⏳📅',
-    'admin': '🤖 AI สมาร์ท: รับทราบค่ะ! แจ้งรายละเอียดหรือปัญหาที่พบไว้ได้เลยนะคะ เดี๋ยว AI ตามแอดมินตัวจริงมาช่วยดูแลคุณลูกค้าทันทีค่ะ 🛠️💬',
+    'promotion_ais_350': 'AIS 350 บาท',
+    'ais 350': 'AIS 350 บาท',
+    'ais 350 บาท': 'AIS 350 บาท',
   };
 
-  return postbackReplies[data] || null;
+  if (postbackMap[data]) {
+    return getReplyMessages(postbackMap[data]);
+  }
+
+  if (data === 'renew') {
+    return [{
+      type: 'text',
+      text: '🤖 AI สมาร์ท: รับเรื่องต่อโปรโมชั่นให้เรียบร้อยค่ะ กำลังตามแอดมินใจดีมาดูแลต่อให้อย่างด่วนเลยนะคะ รอสักครู่นะคะ ⏳📅'
+    }];
+  }
+
+  if (data === 'admin') {
+    return [{
+      type: 'text',
+      text: '🤖 AI สมาร์ท: รับทราบค่ะ! แจ้งรายละเอียดหรือปัญหาที่พบไว้ได้เลยนะคะ เดี๋ยว AI ตามแอดมินตัวจริงมาช่วยดูแลคุณลูกค้าทันทีค่ะ 🛠️💬'
+    }];
+  }
+
+  return null;
 }
 
 // ===============================
@@ -208,16 +264,13 @@ async function handleEvent(event) {
     // POSTBACK
     // --------------------------------
     if (event.type === 'postback') {
-      const replyText = handlePostback(event);
+      const replyMessages = handlePostback(event);
 
-      if (!replyText) {
+      if (!replyMessages) {
         return null;
       }
 
-      return await client.replyMessage(event.replyToken, {
-        type: 'text',
-        text: replyText,
-      });
+      return await client.replyMessage(event.replyToken, replyMessages);
     }
 
     // --------------------------------
@@ -230,16 +283,13 @@ async function handleEvent(event) {
     ) {
       const userMessage = normalizeText(event.message.text);
 
-      const replyText = getReplyText(userMessage);
+      const replyMessages = getReplyMessages(userMessage);
 
-      if (!replyText) {
+      if (!replyMessages) {
         return null;
       }
 
-      return await client.replyMessage(event.replyToken, {
-        type: 'text',
-        text: replyText,
-      });
+      return await client.replyMessage(event.replyToken, replyMessages);
     }
 
     return null;
