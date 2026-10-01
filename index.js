@@ -280,7 +280,7 @@ function handlePostback(event) {
 }
 
 // ===============================
-// HANDLE IMAGE (ตรวจสอบเฉพาะสลิปค่ายแดง ยอด 99 บาท)
+// HANDLE IMAGE (ตรวจสอบสลิปและยอด 99 บาท)
 // ===============================
 async function handleImageMessage(event) {
   const userId = event.source.userId;
@@ -295,11 +295,19 @@ async function handleImageMessage(event) {
     }
     const buffer = Buffer.concat(chunks);
 
-    // 2. ใช้ Tesseract.js อ่านข้อความในสลิป
+    // 2. ตอบกลับแจ้งสถานะกำลังตรวจสอบทันทีเพื่อให้ไม่ติด Timeout
+    await client.replyMessage(replyToken, [
+      {
+        type: 'text',
+        text: `🔍 ระบบกำลังตรวจสอบสลิปยอด 99 บาท และป้องกันการใช้สลิปซ้ำ รอสักครู่นะคะ...`
+      }
+    ]);
+
+    // 3. ใช้ Tesseract.js อ่านข้อความในสลิป
     const { data: { text } } = await Tesseract.recognize(buffer, 'tha+eng');
     const cleanText = text.replace(/\s+/g, '').toLowerCase();
 
-    // เงื่อนไขตรวจสอบว่าเป็นสลิปธนาคาร / มี QR Code หรือไม่
+    // 4. ตรวจสอบเงื่อนไขว่าเป็นสลิปธนาคาร / QR Code จริงหรือไม่
     const isSlip = 
       cleanText.includes('qrcode') || 
       cleanText.includes('qr') || 
@@ -314,17 +322,20 @@ async function handleImageMessage(event) {
       cleanText.includes('krungsri') ||
       cleanText.includes('truemoney');
 
-    // ถ้าไม่ใช่สลิป ให้ข้ามไป
     if (!isSlip) {
-      console.log('ℹ️ รูปภาพที่ส่งมาไม่ใช่สลิปโอนเงิน ข้ามการทำงาน');
-      return; 
+      return await client.pushMessage(userId, [
+        {
+          type: 'text',
+          text: `❌ รูปภาพที่ส่งมาไม่ผ่านการตรวจสอบว่าเป็นสลิปโอนเงิน กรุณาส่งสลิปธนาคารที่ชัดเจนใหม่อีกครั้งค่ะ`
+        }
+      ]);
     }
 
-    // 3. ตรวจสอบว่าในสลิปมียอดเงิน 99 บาทหรือไม่ (เช่น 99 หรือ 99.00)
+    // 5. ตรวจสอบว่ามียอดเงิน 99 หรือ 99.00 บาทหรือไม่
     const isValidAmount = cleanText.includes('99') || cleanText.includes('99.00');
 
     if (!isValidAmount) {
-      return await client.replyMessage(replyToken, [
+      return await client.pushMessage(userId, [
         {
           type: 'text',
           text: `❌ ตรวจสอบยอดเงินในสลิปไม่ถูกต้องค่ะ!\nโปรโมชั่นค่ายแดงต้องชำระจำนวน **99 บาท** เท่านั้น กรุณาตรวจสอบสลิปใหม่อีกครั้งค่ะ`
@@ -332,15 +343,7 @@ async function handleImageMessage(event) {
       ]);
     }
 
-    // 4. หากยอดถูกต้อง ส่งข้อความกำลังตรวจสอบเพื่อปิด replyToken
-    await client.replyMessage(replyToken, [
-      {
-        type: 'text',
-        text: `🔍 ระบบกำลังตรวจสอบสลิป 99 บาท และป้องกันการใช้สลิปซ้ำ รอสักครู่นะคะ...`
-      }
-    ]);
-
-    // 5. ป้องกันสลิปซ้ำด้วย Image Hash
+    // 6. ป้องกันสลิปซ้ำด้วย Image Hash (SHA-256)
     const imageHash = crypto.createHash('sha256').update(buffer).digest('hex');
     const usedSlips = getUsedSlips();
 
@@ -353,16 +356,16 @@ async function handleImageMessage(event) {
       ]);
     }
 
-    // 6. บันทึก Hash สลิปนี้ลงฐานข้อมูลว่าใช้งานแล้ว
+    // 7. บันทึก Hash สลิปนี้ลงฐานข้อมูลว่าใช้งานแล้ว
     saveUsedSlip(imageHash);
 
-    // 7. ส่งข้อความขั้นตอนการสมัครแพ็กเกจค่ายแดง
+    // 8. ส่งขั้นตอนการสมัครสำเร็จ
     const successMessages = [
       {
         type: 'text',
         text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
               `✅ ตรวจสอบสลิป 99 บาทสำเร็จเรียบร้อยแล้วค่ะ! 🎉\n\n` +
-              `📲 **ขั้นตอนการสมัครเติมเงินเข้าเบอร์ 52 บาท**\n` +
+              `📲 **ขั้นตอนการสมัครเติมเงินเข้าเบอร์ค่ายแดง**\n` +
               `━━━━━━━━━━━━━━━━━━━━━━\n` +
               `🔹 **ขั้นตอนที่ 1:** กด *900*3704# แล้วกดโทรออก\n` +
               `🔹 **ขั้นตอนที่ 2:** กด *900*8788# แล้วกดโทรออก\n` +
