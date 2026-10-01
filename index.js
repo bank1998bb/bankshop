@@ -17,7 +17,7 @@ const app = express();
 const client = new line.Client(config);
 
 // ===============================
-// เก็บสถานะล่าสุดของผู้ใช้ (เพื่อแยกแยะว่าเคยเลือกเมนูค่ายแดงหรือไม่)
+// เก็บสถานะล่าสุดของผู้ใช้
 // ===============================
 const userStates = {}; // key: userId, value: 'RED' หรือสถานะอื่นๆ
 
@@ -79,8 +79,9 @@ function getReplyMessages(userMessage, userId) {
   ]);
 
   if (redCommands.has(text)) {
-    // บันทึกสถานะผู้ใช้คนนี้ว่าเลือก "ค่ายแดง"
-    if (userId) userStates[userId] = 'RED';
+    if (userId) {
+      userStates[userId] = 'RED'; // บันทึกสถานะว่าเลือกค่ายแดง
+    }
 
     return [
       {
@@ -124,7 +125,6 @@ function getReplyMessages(userMessage, userId) {
   ]);
 
   if (green300Commands.has(text)) {
-    // ถ้าไม่ใช่ค่ายแดง ให้เคลียร์สถานะหรือตั้งค่าอื่น
     if (userId) userStates[userId] = 'OTHER';
 
     return [
@@ -298,20 +298,20 @@ function handlePostback(event) {
 }
 
 // ===============================
-// HANDLE IMAGE (ตรวจสอบเฉพาะผู้ที่กดเลือกค่ายแดงมาแล้วเท่านั้น)
+// HANDLE IMAGE (ตรวจสอบเฉพาะผู้ที่เลือกค่ายแดง)
 // ===============================
 async function handleImageMessage(event) {
   const userId = event.source.userId;
   const replyToken = event.replyToken;
 
   try {
-    // 1. ตรวจสอบว่าผู้ใช้คนนี้เคยเลือกเมนู "ค่ายแดง" หรือไม่ ถ้าไม่ใช่ (เช่น อยู่ค่ายเขียวหรือยังไม่กดเมนู) ให้ข้ามทันที
+    // ตรวจสอบว่าผู้ใช้กดค่ายแดงมาก่อนหรือไม่ (ถ้าไม่ใช่ค่ายแดง ข้ามทันที ไม่ยุ่งค่ายเขียว)
     if (userStates[userId] !== 'RED') {
-      console.log(`ℹ️ ผู้ใช้ ${userId} ไม่ได้อยู่ในสถานะค่ายแดง (สถานะปัจจุบัน: ${userStates[userId] || 'none'}) ข้ามการตรวจสอบสลิป`);
+      console.log(`ℹ️ ผู้ใช้ ${userId} ไม่ได้กดเลือกค่ายแดง (สถานะ: ${userStates[userId] || 'none'}) ข้ามการตรวจสอบสลิป`);
       return;
     }
 
-    // 2. ดาวน์โหลดรูปภาพจาก LINE มาประมวลผล (ทำงานเฉพาะคนที่กดค่ายแดงแล้ว)
+    // 1. ดาวน์โหลดรูปภาพจาก LINE มาประมวลผล
     const stream = await client.getMessageContent(event.message.id);
     const chunks = [];
     for await (const chunk of stream) {
@@ -319,11 +319,11 @@ async function handleImageMessage(event) {
     }
     const buffer = Buffer.concat(chunks);
 
-    // 3. ใช้ Tesseract.js ตรวจสอบว่าภาพนี้มีคีย์เวิร์ดของสลิปโอนเงินหรือ QR Code หรือไม่
+    // 2. ใช้ Tesseract.js ตรวจสอบข้อความในภาพ
     const { data: { text } } = await Tesseract.recognize(buffer, 'tha+eng');
     const cleanText = text.replace(/\s+/g, '').toLowerCase();
 
-    // เงื่อนไขตรวจสอบว่าเป็นสลิปธนาคาร / มี QR Code หรือไม่
+    // เงื่อนไขสลิปธนาคาร / QR Code
     const isSlip = 
       cleanText.includes('qrcode') || 
       cleanText.includes('qr') || 
@@ -338,13 +338,13 @@ async function handleImageMessage(event) {
       cleanText.includes('krungsri') ||
       cleanText.includes('truemoney');
 
-    // ถ้าไม่ใช่สลิป ให้ข้ามการตรวจสอบไปเลยทันที
+    // ถ้าไม่ใช่สลิป ให้ข้าม
     if (!isSlip) {
       console.log('ℹ️ รูปภาพที่ส่งมาไม่ใช่สลิปโอนเงิน ข้ามการทำงาน');
       return; 
     }
 
-    // 4. หากเป็นสลิปจริง ตอบกลับด้วยข้อความกำลังตรวจสอบเพื่อปิด replyToken
+    // 3. ตอบกลับเพื่อรับ replyToken
     await client.replyMessage(replyToken, [
       {
         type: 'text',
@@ -352,7 +352,7 @@ async function handleImageMessage(event) {
       }
     ]);
 
-    // 5. ป้องกันสลิปซ้ำด้วย Image Hash
+    // 4. ป้องกันสลิปซ้ำด้วย Image Hash
     const imageHash = crypto.createHash('sha256').update(buffer).digest('hex');
     const usedSlips = getUsedSlips();
 
@@ -365,12 +365,13 @@ async function handleImageMessage(event) {
       ]);
     }
 
-    // 6. บันทึก Hash สลิปนี้ลงฐานข้อมูลว่าใช้งานแล้ว
+    // 5. บันทึกสลิปที่ใช้แล้ว
     saveUsedSlip(imageHash);
 
-    // 7. ส่งข้อความขั้นตอนการสมัครแพ็กเกจค่ายแดง และเคลียร์สถานะ (ถ้าต้องการให้ทำรายการใหม่ต้องกดเลือกเมนูใหม่)
+    // 6. เคลียร์สถานะหลังจากสมัครเสร็จ
     userStates[userId] = null;
 
+    // 7. ส่งข้อความขั้นตอนการสมัครแพ็กเกจค่ายแดง
     const successMessages = [
       {
         type: 'text',
