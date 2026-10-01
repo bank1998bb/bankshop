@@ -44,7 +44,7 @@ function getReplyMessages(userMessage) {
   const redCommands = new Set([
     'ค่ายแดง',
     'โปรโมชั่นค่ายแดง',
-    'โปรค่ายแดง',
+    'โปรค่ายแดง 52 บาท',
     'True 52 บาท',
     'ทรู 52',
   ]);
