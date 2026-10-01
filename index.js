@@ -17,12 +17,7 @@ const app = express();
 const client = new line.Client(config);
 
 // ===============================
-// เก็บสถานะล่าสุดของผู้ใช้
-// ===============================
-const userStates = {}; // key: userId, value: 'RED' หรือสถานะอื่นๆ
-
-// ===============================
-// ไฟล์เก็บประวัติสลิปที่ใช้แล้ว (ป้องกันสลิปซ้ำ)
+// ไฟล์เก็บประวัติสลิปที่ใช้แล้ว
 // ===============================
 const DB_FILE = './used_slips.json';
 
@@ -30,6 +25,7 @@ function getUsedSlips() {
   if (!fs.existsSync(DB_FILE)) {
     fs.writeFileSync(DB_FILE, JSON.stringify([]));
   }
+
   const data = fs.readFileSync(DB_FILE);
   return JSON.parse(data);
 }
@@ -38,6 +34,40 @@ function saveUsedSlip(identifier) {
   const slips = getUsedSlips();
   slips.push(identifier);
   fs.writeFileSync(DB_FILE, JSON.stringify(slips, null, 2));
+}
+
+// ======================================================
+// สถานะผู้ใช้
+// ======================================================
+// userId => {
+//   waitingRedSlip: true/false
+// }
+//
+// true  = ผู้ใช้เลือกค่ายแดงและกำลังรอสลิป
+// false = ไม่ต้องตรวจสอบรูป
+//
+// หมายเหตุ: เก็บใน RAM ถ้าเซิร์ฟเวอร์ Restart สถานะจะถูกล้าง
+// ======================================================
+const userStates = new Map();
+
+function setWaitingRedSlip(userId, value) {
+  if (!userId) return;
+
+  userStates.set(userId, {
+    waitingRedSlip: value
+  });
+
+  console.log(
+    `👤 User ${userId} | waitingRedSlip = ${value}`
+  );
+}
+
+function isWaitingRedSlip(userId) {
+  if (!userId) return false;
+
+  const state = userStates.get(userId);
+
+  return state && state.waitingRedSlip === true;
 }
 
 // ===============================
@@ -62,7 +92,7 @@ function normalizeText(text) {
 // ===============================
 // REPLY TEXT
 // ===============================
-function getReplyMessages(userMessage, userId) {
+function getReplyMessages(userMessage, userId = null) {
   const text = normalizeText(userMessage);
 
   // ==========================================
@@ -79,9 +109,9 @@ function getReplyMessages(userMessage, userId) {
   ]);
 
   if (redCommands.has(text)) {
-    if (userId) {
-      userStates[userId] = 'RED'; // บันทึกสถานะว่าเลือกค่ายแดง
-    }
+
+    // 🔴 เปิดสถานะรอสลิปค่ายแดง
+    setWaitingRedSlip(userId, true);
 
     return [
       {
@@ -125,7 +155,9 @@ function getReplyMessages(userMessage, userId) {
   ]);
 
   if (green300Commands.has(text)) {
-    if (userId) userStates[userId] = 'OTHER';
+
+    // 🟢 ปิดการตรวจสลิปค่ายแดง
+    setWaitingRedSlip(userId, false);
 
     return [
       {
@@ -162,7 +194,9 @@ function getReplyMessages(userMessage, userId) {
   ]);
 
   if (green350Commands.has(text)) {
-    if (userId) userStates[userId] = 'OTHER';
+
+    // 🟢 ปิดการตรวจสลิปค่ายแดง
+    setWaitingRedSlip(userId, false);
 
     return [
       {
@@ -192,7 +226,10 @@ function getReplyMessages(userMessage, userId) {
   ]);
 
   if (renewCommands.has(text)) {
-    if (userId) userStates[userId] = 'OTHER';
+
+    // ปิดสถานะตรวจสลิปค่ายแดง
+    setWaitingRedSlip(userId, false);
+
     return [
       {
         type: 'text',
@@ -218,7 +255,10 @@ function getReplyMessages(userMessage, userId) {
   ]);
 
   if (adminCommands.has(text)) {
-    if (userId) userStates[userId] = 'OTHER';
+
+    // ปิดสถานะตรวจสลิปค่ายแดง
+    setWaitingRedSlip(userId, false);
+
     return [
       {
         type: 'text',
@@ -267,7 +307,9 @@ function handlePostback(event) {
   }
 
   if (data === 'renew' || data === 'ต่อโปร') {
-    if (userId) userStates[userId] = 'OTHER';
+
+    setWaitingRedSlip(userId, false);
+
     return [
       {
         type: 'text',
@@ -281,7 +323,9 @@ function handlePostback(event) {
   }
 
   if (data === 'admin' || data === 'ติดต่อแอดมิน') {
-    if (userId) userStates[userId] = 'OTHER';
+
+    setWaitingRedSlip(userId, false);
+
     return [
       {
         type: 'text',
@@ -297,115 +341,175 @@ function handlePostback(event) {
   return null;
 }
 
-// ===============================
-// HANDLE IMAGE (ตรวจสอบเฉพาะผู้ที่เลือกค่ายแดง และมีระบบแจ้งเตือนชัดเจน)
-// ===============================
+// ======================================================
+// HANDLE IMAGE
+// ======================================================
 async function handleImageMessage(event) {
   const userId = event.source.userId;
   const replyToken = event.replyToken;
 
+  // ==================================================
+  // สำคัญที่สุด
+  // ถ้าไม่ได้อยู่ในเมนูค่ายแดง
+  // ห้ามดาวน์โหลดรูป
+  // ห้าม OCR
+  // ห้ามตรวจ QR Code
+  // ห้ามตรวจสลิป
+  // ==================================================
+  if (!isWaitingRedSlip(userId)) {
+    console.log(
+      `ℹ️ User ${userId} ส่งรูป แต่ไม่ได้อยู่ในขั้นตอนสลิปค่ายแดง → ข้ามการตรวจสอบ`
+    );
+
+    return null;
+  }
+
   try {
-    // 1. ตรวจสอบว่าผู้ใช้กดค่ายแดงมาก่อนหรือไม่
-    if (userStates[userId] !== 'RED') {
-      console.log(`ℹ️ ผู้ใช้ ${userId} ไม่ได้กดเลือกค่ายแดง (สถานะ: ${userStates[userId] || 'none'}) ข้ามการตรวจสอบสลิป`);
-      return;
-    }
 
-    // แจ้งเตือนผู้ใช้ทันทีว่าระบบกำลังเริ่มสแกนรูปภาพ
-    await client.replyMessage(replyToken, [
-      {
-        type: 'text',
-        text: `🔍 ระบบกำลังตรวจสอบสลิปโอนเงินของคุณลูกค้า รอสักครู่นะคะ...`
-      }
-    ]);
+    console.log(
+      `🔴 User ${userId} อยู่ในขั้นตอนค่ายแดง → เริ่มตรวจสอบรูปสลิป`
+    );
 
-    // 2. ดาวน์โหลดรูปภาพจาก LINE มาประมวลผล
+    // 1. ดาวน์โหลดรูปภาพจาก LINE
     const stream = await client.getMessageContent(event.message.id);
+
     const chunks = [];
+
     for await (const chunk of stream) {
       chunks.push(chunk);
     }
+
     const buffer = Buffer.concat(chunks);
 
-    // 3. ใช้ Tesseract.js ตรวจสอบข้อความในภาพ
-    console.log('🔄 กำลังอ่านข้อความจากสลิปด้วย OCR...');
-    const { data: { text } } = await Tesseract.recognize(buffer, 'tha+eng');
-    const cleanText = text.replace(/\s+/g, '').toLowerCase();
-    console.log('📝 ผลการสแกนข้อความ:', cleanText);
+    // ==================================================
+    // 2. OCR ตรวจสอบสลิป
+    // จะทำเฉพาะผู้ที่อยู่ใน flow ค่ายแดงเท่านั้น
+    // ==================================================
+    const {
+      data: { text }
+    } = await Tesseract.recognize(
+      buffer,
+      'tha+eng'
+    );
 
-    // เงื่อนไขสลิปธนาคาร / QR Code / คำที่เกี่ยวข้องกับการโอนเงิน
-    const isSlip = 
-      cleanText.includes('qrcode') || 
-      cleanText.includes('qr') || 
-      cleanText.includes('slipid') || 
+    const cleanText = text
+      .replace(/\s+/g, '')
+      .toLowerCase();
+
+    // ==================================================
+    // 3. ตรวจสอบว่าเป็นสลิปหรือไม่
+    // ==================================================
+    const isSlip =
+      cleanText.includes('qrcode') ||
+      cleanText.includes('qr') ||
+      cleanText.includes('slipid') ||
       cleanText.includes('โอนเงินสำเร็จ') ||
-      cleanText.includes('โอนสำเร็จ') ||
       cleanText.includes('ref.') ||
       cleanText.includes('ref:') ||
-      cleanText.includes('bangkokbank') || 
-      cleanText.includes('kbank') || 
-      cleanText.includes('scb') || 
-      cleanText.includes('krungthai') || 
+      cleanText.includes('bangkokbank') ||
+      cleanText.includes('kbank') ||
+      cleanText.includes('scb') ||
+      cleanText.includes('krungthai') ||
       cleanText.includes('krungsri') ||
-      cleanText.includes('truemoney') ||
-      cleanText.includes('บาท') ||
-      cleanText.includes('ธนาคาร');
+      cleanText.includes('truemoney');
 
-    // ถ้า OCR อ่านแล้วไม่เข้าเงื่อนไขสลิป แจ้งเตือนกลับไปหาผู้ใช้
+    // ==================================================
+    // ไม่ใช่สลิป → ไม่ทำอะไรต่อ
+    // ==================================================
     if (!isSlip) {
-      console.log('ℹ️ รูปภาพที่ส่งมาไม่ตรงกับรูปแบบสลิปโอนเงิน');
-      await client.pushMessage(userId, [
-        {
-          type: 'text',
-          text: `❌ รูปภาพที่คุณลูกค้าส่งมาไม่เข้าข่ายสลิปโอนเงิน หรือไม่พบ QR Code / ข้อมูลการโอน กรุณาส่งรูปสลิปใหม่อีกครั้งค่ะ`
-        }
-      ]);
-      return; 
+
+      console.log(
+        `ℹ️ User ${userId} ส่งรูปที่ไม่ใช่สลิป → ข้าม`
+      );
+
+      return;
     }
 
-    // 4. ป้องกันสลิปซ้ำด้วย Image Hash
-    const imageHash = crypto.createHash('sha256').update(buffer).digest('hex');
+    // ==================================================
+    // 4. เจอสลิป → ตอบกลับว่ากำลังตรวจสอบ
+    // ==================================================
+    await client.replyMessage(replyToken, [
+      {
+        type: 'text',
+        text: `🔍 ระบบกำลังตรวจสอบสลิปโอนเงินและป้องกันการใช้สลิปซ้ำ รอสักครู่นะคะ...`
+      }
+    ]);
+
+    // ==================================================
+    // 5. ป้องกันสลิปซ้ำด้วย Image Hash
+    // ==================================================
+    const imageHash = crypto
+      .createHash('sha256')
+      .update(buffer)
+      .digest('hex');
+
     const usedSlips = getUsedSlips();
 
     if (usedSlips.includes(imageHash)) {
+
+      // ปิดสถานะ เพราะรายการนี้จบแล้ว
+      setWaitingRedSlip(userId, false);
+
       return await client.pushMessage(userId, [
         {
           type: 'text',
-          text: `❌ สลิปนี้ถูกใช้งานไปแล้วค่ะ!\nไม่อนุญาตให้นำสลิปเดิมมาส่งซ้ำ กรุณาใช้สลิปจริงในการทำรายการค่ะ`
+          text:
+            `❌ สลิปนี้ถูกใช้งานไปแล้วค่ะ!\n` +
+            `ไม่อนุญาตให้นำสลิปเดิมมาส่งซ้ำ กรุณาใช้สลิปจริงในการทำรายการค่ะ`
         }
       ]);
     }
 
-    // 5. บันทึกสลิปที่ใช้แล้ว
+    // ==================================================
+    // 6. บันทึก Hash สลิป
+    // ==================================================
     saveUsedSlip(imageHash);
 
-    // 6. เคลียร์สถานะหลังจากสมัครเสร็จ
-    userStates[userId] = null;
+    // ==================================================
+    // 7. ปิดสถานะรอตรวจสลิป
+    // ==================================================
+    setWaitingRedSlip(userId, false);
 
-    // 7. ส่งข้อความขั้นตอนการสมัครแพ็กเกจค่ายแดง
+    // ==================================================
+    // 8. ส่งขั้นตอนสมัครค่ายแดง
+    // ==================================================
     const successMessages = [
       {
         type: 'text',
-        text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
-              `✅ ตรวจสอบสลิปโอนเงินสำเร็จเรียบร้อยแล้วค่ะ! 🎉\n\n` +
-              `📲 **ขั้นตอนการสมัครเติมเงินเข้าเบอร์ 52 บาท**\n` +
-              `━━━━━━━━━━━━━━━━━━━━━━\n` +
-              `🔹 **ขั้นตอนที่ 1:** กด *900*3704# แล้วกดโทรออก\n` +
-              `🔹 **ขั้นตอนที่ 2:** กด *900*8788# แล้วกดโทรออก\n` +
-              `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-              `📶 **คำแนะนำเพิ่มเติม:**\n` +
-              `พอได้รับข้อความเน็ต 6 Mbps แล้ว สามารถปิด-เปิดโหมดเครื่องบิน (Airplane Mode) 1 รอบ แล้วสามารถใช้งานได้เลยค่ะ! 🚀✨`
+        text:
+          `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
+          `✅ ตรวจสอบสลิปโอนเงินสำเร็จเรียบร้อยแล้วค่ะ! 🎉\n\n` +
+          `📲 **ขั้นตอนการสมัครเติมเงินเข้าเบอร์ 52 บาท**\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `🔹 **ขั้นตอนที่ 1:** กด *900*3704# แล้วกดโทรออก\n` +
+          `🔹 **ขั้นตอนที่ 2:** กด *900*8788# แล้วกดโทรออก\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `📶 **คำแนะนำเพิ่มเติม:**\n` +
+          `พอได้รับข้อความเน็ต 6 Mbps แล้ว สามารถปิด-เปิดโหมดเครื่องบิน (Airplane Mode) 1 รอบ แล้วสามารถใช้งานได้เลยค่ะ! 🚀✨`
       }
     ];
 
-    await client.pushMessage(userId, successMessages);
+    await client.pushMessage(
+      userId,
+      successMessages
+    );
 
   } catch (error) {
-    console.error('❌ Slip Verification Error:', error);
+
+    console.error(
+      '❌ Slip Verification Error:',
+      error
+    );
+
+    // ถ้าเกิด error ให้ปิดสถานะไว้ก่อน
+    setWaitingRedSlip(userId, false);
+
     await client.pushMessage(userId, [
       {
         type: 'text',
-        text: `⚠ เกิดข้อผิดพลาดในการตรวจสอบสลิปอัตโนมัติ กรุณาส่งสลิปเข้ามาใหม่หรือติดต่อแอดมินค่ะ`
+        text:
+          `⚠ เกิดข้อผิดพลาดในการตรวจสอบสลิปอัตโนมัติ ` +
+          `กรุณาส่งสลิปเข้ามาใหม่หรือติดต่อแอดมินค่ะ`
       }
     ]);
   }
@@ -416,39 +520,76 @@ async function handleImageMessage(event) {
 // ===============================
 async function handleEvent(event) {
   try {
+
+    // ==========================================
+    // POSTBACK
+    // ==========================================
     if (event.type === 'postback') {
+
       const replyMessages = handlePostback(event);
+
       if (!replyMessages) return null;
-      return await client.replyMessage(event.replyToken, replyMessages);
+
+      return await client.replyMessage(
+        event.replyToken,
+        replyMessages
+      );
     }
 
+    // ==========================================
+    // IMAGE
+    // ==========================================
     if (
       event.type === 'message' &&
       event.message &&
       event.message.type === 'image'
     ) {
+
+      // handleImageMessage จะตรวจเองว่า
+      // user อยู่ใน flow ค่ายแดงหรือไม่
       return await handleImageMessage(event);
     }
 
+    // ==========================================
+    // TEXT
+    // ==========================================
     if (
       event.type === 'message' &&
       event.message &&
       event.message.type === 'text'
     ) {
-      const userMessage = normalizeText(event.message.text);
-      const userId = event.source.userId;
-      const replyMessages = getReplyMessages(userMessage, userId);
+
+      const userMessage =
+        normalizeText(event.message.text);
+
+      const userId =
+        event.source.userId;
+
+      const replyMessages =
+        getReplyMessages(
+          userMessage,
+          userId
+        );
+
       if (!replyMessages) return null;
-      return await client.replyMessage(event.replyToken, replyMessages);
+
+      return await client.replyMessage(
+        event.replyToken,
+        replyMessages
+      );
     }
 
     return null;
 
   } catch (error) {
+
     console.error(
       '❌ Error handling event:',
-      error && error.response ? error.response.data : error
+      error && error.response
+        ? error.response.data
+        : error
     );
+
     return null;
   }
 }
@@ -460,19 +601,37 @@ app.post(
   '/webhook',
   line.middleware(config),
   async (req, res) => {
+
     try {
-      const events = req.body.events || [];
-      res.status(200).json({ status: 'ok' });
+
+      const events =
+        req.body.events || [];
+
+      res.status(200).json({
+        status: 'ok'
+      });
 
       if (events.length > 0) {
+
         await Promise.allSettled(
-          events.map(event => handleEvent(event))
+          events.map(event =>
+            handleEvent(event)
+          )
         );
+
       }
+
     } catch (error) {
-      console.error('❌ Webhook Error:', error);
+
+      console.error(
+        '❌ Webhook Error:',
+        error
+      );
+
       if (!res.headersSent) {
-        res.status(200).json({ status: 'ok' });
+        res.status(200).json({
+          status: 'ok'
+        });
       }
     }
   }
@@ -481,18 +640,35 @@ app.post(
 // ===============================
 // ERROR HANDLER
 // ===============================
-app.use((err, req, res, next) => {
-  console.error('❌ Server Error:', err);
-  if (!res.headersSent) {
-    res.status(200).json({ status: 'ok' });
+app.use(
+  (err, req, res, next) => {
+
+    console.error(
+      '❌ Server Error:',
+      err
+    );
+
+    if (!res.headersSent) {
+      res.status(200).json({
+        status: 'ok'
+      });
+    }
   }
-});
+);
 
 // ===============================
 // SERVER
 // ===============================
-const PORT = process.env.PORT || 3000;
+const PORT =
+  process.env.PORT || 3000;
+
 app.listen(PORT, () => {
-  console.log(`🚀 LINE Bot Server running on port ${PORT}`);
-  console.log(`📡 Webhook: /webhook`);
+
+  console.log(
+    `🚀 LINE Bot Server running on port ${PORT}`
+  );
+
+  console.log(
+    `📡 Webhook: /webhook`
+  );
 });
