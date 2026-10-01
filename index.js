@@ -83,7 +83,7 @@ function getReplyMessages(userMessage, userId) {
               `🔴 แพ็กเกจค่ายแดง\n` +
               `⚡ รายละเอียดแพ็กเกจ: 52 บาท\n` +
               `🚀 ความเร็วเน็ต: 6 Mbps\n` +
-              `♾️️ รายละเอียด: เน็ตไม่อั้น ไม่ลดสปีด ไม่จำกัดการใช้งาน\n` +
+              `♾️ รายละเอียด: เน็ตไม่อั้น ไม่ลดสปีด ไม่จำกัดการใช้งาน\n` +
               `⏳ ระยะเวลาการใช้งาน: 7 วัน\n` +
               `✨ การใช้งาน: ใช้งานได้ลื่นไหลไม่มีสะดุดค่ะ!`
       },
@@ -223,7 +223,7 @@ function handlePostback(event) {
 }
 
 // ===============================
-// HANDLE IMAGE (ตรวจสอบสลิปทุกธนาคาร เฉพาะผู้ที่เลือกค่ายแดง)
+// HANDLE IMAGE (ตรวจสอบสลิปและยอดเงิน 99/100 บาท เฉพาะผู้ที่เลือกค่ายแดง)
 // ===============================
 async function handleImageMessage(event) {
   const userId = event.source.userId;
@@ -291,6 +291,18 @@ async function handleImageMessage(event) {
       return; 
     }
 
+    // 💰 ตรวจสอบยอดเงิน (ต้องมี 99 หรือ 100 อยู่ในสลิป)
+    const hasValidAmount = cleanText.includes('99') || cleanText.includes('100');
+    if (!hasValidAmount) {
+      await client.pushMessage(userId, [
+        {
+          type: 'text',
+          text: `❌ ยอดเงินไม่ตรงค่ะ! แพ็กเกจนี้ต้องชำระยอด 99 หรือ 100 บาทเท่านั้น กรุณาตรวจสอบสลิปใหม่อีกครั้งค่ะ`
+        }
+      ]);
+      return;
+    }
+
     // 4. ตรวจสอบสลิปซ้ำผ่านระบบ SHA-256 Hash
     const imageHash = crypto.createHash('sha256').update(buffer).digest('hex');
     const usedSlips = getUsedSlips();
@@ -316,7 +328,7 @@ async function handleImageMessage(event) {
       {
         type: 'text',
         text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
-              `✅ ตรวจสอบสลิปโอนเงินสำเร็จเรียบร้อยแล้วค่ะ! 🎉\n\n` +
+              `✅ ตรวจสอบสลิปและยอดเงิน 99/100 บาทสำเร็จเรียบร้อยแล้วค่ะ! 🎉\n\n` +
               `📲 **ขั้นตอนการสมัครเติมเงินเข้าเบอร์ 52 บาท**\n` +
               `━━━━━━━━━━━━━━━━━━━━━━\n` +
               `🔹 **ขั้นตอนที่ 1:** กด *900*3704# แล้วกดโทรออก\n` +
