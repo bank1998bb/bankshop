@@ -33,13 +33,13 @@ function normalizeText(text) {
 }
 
 // ===============================
-// REPLY TEXT (สำหรับผู้ใช้พิมพ์ข้อความมา)
+// REPLY TEXT (สำหรับผู้ใช้พิมพ์ข้อความมา หรือกดปุ่มริชเมนูแบบ Message)
 // ===============================
 function getReplyMessages(userMessage) {
   const text = normalizeText(userMessage);
 
   // ==========================================
-  // โปรโมชั่น ค่ายแดง
+  // โปรโมชั่น ค่ายแดง (เพิ่มคำว่า ค่ายแดง ตรงๆ ที่คนมักกดจากเมนู)
   // ==========================================
   const redCommands = new Set([
     'ค่ายแดง',
@@ -218,13 +218,14 @@ function handlePostback(event) {
 
     'promotion_red': 'ค่ายแดง',
     'red': 'ค่ายแดง',
+    'ค่ายแดง': 'ค่ายแดง',
   };
 
   if (postbackMap[data]) {
     return getReplyMessages(postbackMap[data]);
   }
 
-  if (data === 'renew') {
+  if (data === 'renew' || data === 'ต่อโปร') {
     return [
       {
         type: 'text',
@@ -237,7 +238,7 @@ function handlePostback(event) {
     ];
   }
 
-  if (data === 'admin') {
+  if (data === 'admin' || data === 'ติดต่อแอดมิน') {
     return [
       {
         type: 'text',
@@ -272,7 +273,7 @@ async function handleEvent(event) {
     }
 
     // --------------------------------
-    // TEXT MESSAGE
+    // TEXT MESSAGE (รวมถึงปุ่ม Rich Menu แบบ Message Action ที่ส่งข้อความเข้าแชท)
     // --------------------------------
     if (
       event.type === 'message' &&
