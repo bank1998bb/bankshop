@@ -17,7 +17,7 @@ const app = express();
 const client = new line.Client(config);
 
 // ===============================
-// ไฟล์เก็บประวัติสลิปที่ใช้แล้ว (ป้องกันสลิปซ้ำเฉพาะค่ายแดง)
+// ไฟล์เก็บประวัติสลิปที่ใช้แล้ว (ป้องกันสลิปซ้ำ)
 // ===============================
 const DB_FILE = './used_slips.json';
 
@@ -61,7 +61,7 @@ function getReplyMessages(userMessage) {
   const text = normalizeText(userMessage);
 
   // ==========================================
-  // โปรโมชั่น ค่ายแดง (เฉพาะค่ายนี้ที่จะต้องส่งสลิปตรวจอัตโนมัติ)
+  // โปรโมชั่น ค่ายแดง
   // ==========================================
   const redCommands = new Set([
     'ค่ายแดง',
@@ -98,7 +98,7 @@ function getReplyMessages(userMessage) {
   }
 
   // ==========================================
-  // โปรโมชั่น ค่ายเขียว 300 บาท (ไม่ยุ่งเกี่ยวกับสลิป)
+  // โปรโมชั่น ค่ายเขียว 300 บาท
   // ==========================================
   const green300Commands = new Set([
     'ค่ายเขียว 300 บาท',
@@ -133,7 +133,7 @@ function getReplyMessages(userMessage) {
   }
 
   // ==========================================
-  // โปรโมชั่น ค่ายเขียว 350 บาท (ไม่ยุ่งเกี่ยวกับสลิป)
+  // โปรโมชั่น ค่ายเขียว 350 บาท
   // ==========================================
   const green350Commands = new Set([
     'ค่ายเขียว 350 บาท',
@@ -280,22 +280,14 @@ function handlePostback(event) {
 }
 
 // ===============================
-// HANDLE IMAGE (ตรวจสอบสลิปเฉพาะค่ายแดง 52 บาทเท่านั้น)
+// HANDLE IMAGE (ตรวจสอบเฉพาะสลิปที่มี QR Code/สลิปธนาคารเท่านั้น)
 // ===============================
 async function handleImageMessage(event) {
   const userId = event.source.userId;
   const replyToken = event.replyToken;
 
   try {
-    // 1. ตอบกลับด้วยข้อความเพื่อปิด replyToken ทันที ป้องกัน Token หมดอายุ
-    await client.replyMessage(replyToken, [
-      {
-        type: 'text',
-        text: `🔍 ระบบกำลังตรวจสอบสลิปและป้องกันการใช้สลิปซ้ำ (สำหรับค่ายแดง 99 บาท) รอสักครู่นะคะ...`
-      }
-    ]);
-
-    // 2. ดาวน์โหลดรูปภาพสลิปจาก LINE
+    // 1. ดาวน์โหลดรูปภาพจาก LINE มาประมวลผล
     const stream = await client.getMessageContent(event.message.id);
     const chunks = [];
     for await (const chunk of stream) {
@@ -303,7 +295,40 @@ async function handleImageMessage(event) {
     }
     const buffer = Buffer.concat(chunks);
 
-    // 3. ป้องกันสลิปซ้ำ: ตรวจสอบ Image Hash
+    // 2. ใช้ Tesseract.js ตรวจสอบว่าภาพนี้มีคีย์เวิร์ดของสลิปโอนเงินหรือ QR Code หรือไม่
+    const { data: { text } } = await Tesseract.recognize(buffer, 'tha+eng');
+    const cleanText = text.replace(/\s+/g, '').toLowerCase();
+
+    // เงื่อนไขตรวจสอบว่าเป็นสลิปธนาคาร / มี QR Code หรือไม่
+    const isSlip = 
+      cleanText.includes('qrcode') || 
+      cleanText.includes('qr') || 
+      cleanText.includes('slipid') || 
+      cleanText.includes('โอนเงินสำเร็จ') ||
+      cleanText.includes('ref.') ||
+      cleanText.includes('ref:') ||
+      cleanText.includes('bangkokbank') || 
+      cleanText.includes('kbank') || 
+      cleanText.includes('scb') || 
+      cleanText.includes('krungthai') || 
+      cleanText.includes('krungsri') ||
+      cleanText.includes('truemoney');
+
+    // ถ้าไม่ใช่สลิป (เช่น ส่งรูปแคปหน้าจอทั่วไป รูปภาพแอป ฯลฯ ที่ไม่มีคีย์เวิร์ดสลิป/QR) ให้ข้ามการตรวจสอบไปเลยทันที
+    if (!isSlip) {
+      console.log('ℹ️ รูปภาพที่ส่งมาไม่ใช่สลิปโอนเงิน (ไม่มี QR Code หรือคำว่าสลิป) ข้ามการทำงาน');
+      return; 
+    }
+
+    // 3. หากเป็นสลิปจริง ตอบกลับด้วยข้อความกำลังตรวจสอบเพื่อปิด replyToken
+    await client.replyMessage(replyToken, [
+      {
+        type: 'text',
+        text: `🔍 ระบบกำลังตรวจสอบสลิปโอนเงินและป้องกันการใช้สลิปซ้ำ รอสักครู่นะคะ...`
+      }
+    ]);
+
+    // 4. ป้องกันสลิปซ้ำด้วย Image Hash
     const imageHash = crypto.createHash('sha256').update(buffer).digest('hex');
     const usedSlips = getUsedSlips();
 
@@ -316,32 +341,15 @@ async function handleImageMessage(event) {
       ]);
     }
 
-    // 4. ใช้ Tesseract.js อ่านข้อความในสลิป (OCR)
-    const { data: { text } } = await Tesseract.recognize(buffer, 'tha+eng');
-    const cleanText = text.replace(/\s+/g, '');
-    console.log('📄 ข้อความที่อ่านได้จากสลิป (ค่ายแดง):', cleanText);
-
-    // 5. ตรวจสอบยอดเงิน (ต้องพบยอด 99 หรือ 99.00 บาท)
-    const isAmountValid = cleanText.includes('99') || cleanText.includes('99.00');
-
-    if (!isAmountValid) {
-      return await client.pushMessage(userId, [
-        {
-          type: 'text',
-          text: `❌ ไม่พบยอดโอนเงิน 99 บาท หรือสลิปไม่ถูกต้องค่ะ\nกรุณาตรวจสอบความถูกต้องและส่งสลิปใหม่อีกครั้งนะคะ 😊`
-        }
-      ]);
-    }
-
-    // 6. บันทึก Hash ลงในรายการว่าใช้งานแล้ว
+    // 5. บันทึก Hash สลิปนี้ลงฐานข้อมูลว่าใช้งานแล้ว
     saveUsedSlip(imageHash);
 
-    // 7. ส่งข้อความขั้นตอนการสมัครแพ็กเกจค่ายแดง 52 บาท
+    // 6. ส่งข้อความขั้นตอนการสมัครแพ็กเกจค่ายแดง
     const successMessages = [
       {
         type: 'text',
         text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
-              `✅ ตรวจสอบสลิปยอดเงิน 99 บาท ค่าบริการสำเร็จเรียบร้อยแล้วค่ะ! 🎉\n\n` +
+              `✅ ตรวจสอบสลิปโอนเงินสำเร็จเรียบร้อยแล้วค่ะ! 🎉\n\n` +
               `📲 **ขั้นตอนการสมัครเติมเงินเข้าเบอร์ 52 บาท**\n` +
               `━━━━━━━━━━━━━━━━━━━━━━\n` +
               `🔹 **ขั้นตอนที่ 1:** กด *900*3704# แล้วกดโทรออก\n` +
@@ -370,22 +378,12 @@ async function handleImageMessage(event) {
 // ===============================
 async function handleEvent(event) {
   try {
-    // --------------------------------
-    // POSTBACK
-    // --------------------------------
     if (event.type === 'postback') {
       const replyMessages = handlePostback(event);
-
-      if (!replyMessages) {
-        return null;
-      }
-
+      if (!replyMessages) return null;
       return await client.replyMessage(event.replyToken, replyMessages);
     }
 
-    // --------------------------------
-    // IMAGE MESSAGE (ทำงานเฉพาะเมื่อส่งสลิปมา ซึ่งในที่นี้ใช้ตรวจค่ายแดง)
-    // --------------------------------
     if (
       event.type === 'message' &&
       event.message &&
@@ -394,22 +392,14 @@ async function handleEvent(event) {
       return await handleImageMessage(event);
     }
 
-    // --------------------------------
-    // TEXT MESSAGE
-    // --------------------------------
     if (
       event.type === 'message' &&
       event.message &&
       event.message.type === 'text'
     ) {
       const userMessage = normalizeText(event.message.text);
-
       const replyMessages = getReplyMessages(userMessage);
-
-      if (!replyMessages) {
-        return null;
-      }
-
+      if (!replyMessages) return null;
       return await client.replyMessage(event.replyToken, replyMessages);
     }
 
@@ -418,11 +408,8 @@ async function handleEvent(event) {
   } catch (error) {
     console.error(
       '❌ Error handling event:',
-      error && error.response
-        ? error.response.data
-        : error
+      error && error.response ? error.response.data : error
     );
-
     return null;
   }
 }
@@ -436,7 +423,6 @@ app.post(
   async (req, res) => {
     try {
       const events = req.body.events || [];
-
       res.status(200).json({ status: 'ok' });
 
       if (events.length > 0) {
@@ -444,10 +430,8 @@ app.post(
           events.map(event => handleEvent(event))
         );
       }
-
     } catch (error) {
       console.error('❌ Webhook Error:', error);
-
       if (!res.headersSent) {
         res.status(200).json({ status: 'ok' });
       }
@@ -460,7 +444,6 @@ app.post(
 // ===============================
 app.use((err, req, res, next) => {
   console.error('❌ Server Error:', err);
-
   if (!res.headersSent) {
     res.status(200).json({ status: 'ok' });
   }
@@ -470,7 +453,6 @@ app.use((err, req, res, next) => {
 // SERVER
 // ===============================
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
   console.log(`🚀 LINE Bot Server running on port ${PORT}`);
   console.log(`📡 Webhook: /webhook`);
