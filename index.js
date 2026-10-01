@@ -94,7 +94,7 @@ function getReplyMessages(userMessage, userId) {
       },
       {
         type: 'text',
-        text: `💰 มีค่าบริการ 99 บาท ชำระค่าบริการเสร็จส่งสลิปเข้ามาในแชตได้เลย ระบบจะตรวจสอบสลิปอัตโนมัติและส่งขั้นตอนการสมัครให้ทันทีค่ะ 😊`
+        text: `💰 ชำระค่าบริการยอด 99 หรือ 100 บาท เสร็จแล้วส่งสลิปเข้ามาในแชตได้เลย ระบบจะตรวจสอบสลิปอัตโนมัติและส่งขั้นตอนการสมัครให้ทันทีค่ะ 😊`
       }
     ];
   }
@@ -223,19 +223,19 @@ function handlePostback(event) {
 }
 
 // ===============================
-// HANDLE IMAGE (ตรวจสอบสลิปและยอดเงิน 99/100 บาท เฉพาะผู้ที่เลือกค่ายแดง)
+// HANDLE IMAGE (ตรวจสอบสลิปและยอดเงิน 99/99.00 หรือ 100/100.00 เท่านั้น)
 // ===============================
 async function handleImageMessage(event) {
   const userId = event.source.userId;
   const replyToken = event.replyToken;
 
-  // 🛡️ ป้องกัน: ถ้ายูสเซอร์ไม่ได้อยู่ในสถานะเลือกค่ายแดง ให้ข้ามทันที 100% ไม่ยุ่งกับรูปค่ายอื่น
+  // 🛡️ ป้องกัน: ถ้ายูสเซอร์ไม่ได้อยู่ในสถานะเลือกค่ายแดง ให้ข้ามทันที
   if (!redMenuUsers.has(userId)) {
     return;
   }
 
   try {
-    // ⚡ 1. ตอบกลับข้อความแจ้งเตือนด่วนด้วย replyToken ทันที เพื่อไม่ให้ลูกค้ารอนาน
+    // ⚡ 1. ตอบกลับข้อความแจ้งเตือนด่วนด้วย replyToken ทันที
     await client.replyMessage(replyToken, [
       {
         type: 'text',
@@ -258,29 +258,19 @@ async function handleImageMessage(event) {
     // 🔍 ระบบตรวจสอบคีย์เวิร์ดสลิปธนาคารและกระเป๋าเงินอิเล็กทรอนิกส์ทั้งหมดในไทย
     const slipKeywords = [
       'qrcode', 'qr', 'slipid', 'ref.', 'ref:', 'โอนเงินสำเร็จ', 'completed', 'successful',
-      // ธนาคารกสิกรไทย (KBANK)
       'kbank', 'kasikorn', 'กสิกรไทย',
-      // ธนาคารไทยพาณิชย์ (SCB)
       'scb', 'thaipanich', 'ไทยพาณิชย์',
-      // ธนาคารกรุงเทพ (BBL)
       'bangkokbank', 'bangkok', 'กรุงเทพ',
-      // ธนาคารกรุงไทย (KTB)
       'krungthai', 'ktb', 'กรุงไทย',
-      // ธนาคารกรุงศรีอยุธยา (BAY)
       'krungsri', 'bay', 'กรุงศรี',
-      // ธนาคารทหารไทยธนชาต (TTB)
       'ttb', 'tmb', 'thanachart', 'ทหารไทย',
-      // ธนาคารออมสิน (GSB)
       'gsb', 'ออมสิน',
-      // ธนาคารเพื่อการเกษตรและสหกรณ์การเกษตร (BAAC)
       'baac', 'ธกส',
-      // ทรูมันนี่ วอลเล็ท (TrueMoney)
       'truemoney', 'wallet', 'ทรูมันนี่'
     ];
 
     const isBankSlip = slipKeywords.some(keyword => cleanText.includes(keyword));
 
-    // ถ้าไม่ใช่สลิปธนาคาร ให้ส่งแจ้งเตือนผ่าน pushMessage
     if (!isBankSlip) {
       await client.pushMessage(userId, [
         {
@@ -291,19 +281,31 @@ async function handleImageMessage(event) {
       return; 
     }
 
-    // 💰 ตรวจสอบยอดเงิน (ต้องมี 99 หรือ 100 อยู่ในสลิป)
-    const hasValidAmount = cleanText.includes('99') || cleanText.includes('100');
-    if (!hasValidAmount) {
+    // 💰 4. ตรวจสอบยอดเงินแบบเจาะจงเฉพาะ 99.00, 99, 100.00, 100 เท่านั้น
+    const numbersInSlip = cleanText.match(/[0-9]+\.[0-9]{2}/g) || [];
+    const exactNumbers = cleanText.match(/\b(99|100)\b/g) || [];
+
+    const isValidDecimal = numbersInSlip.some(num => {
+      const val = parseFloat(num);
+      return val === 99.00 || val === 100.00;
+    });
+
+    const isValidExact = exactNumbers.some(num => {
+      const val = parseInt(num, 10);
+      return val === 99 || val === 100;
+    });
+
+    if (!isValidDecimal && !isValidExact) {
       await client.pushMessage(userId, [
         {
           type: 'text',
-          text: `❌ ยอดเงินไม่ตรงค่ะ! แพ็กเกจนี้ต้องชำระยอด 99 หรือ 100 บาทเท่านั้น กรุณาตรวจสอบสลิปใหม่อีกครั้งค่ะ`
+          text: `❌ ยอดเงินไม่ถูกต้อง! แพ็กเกจนี้ต้องโอนยอด 99 หรือ 100 บาทเท่านั้น (ยอดในสลิปไม่ตรงตามเงื่อนไข)`
         }
       ]);
       return;
     }
 
-    // 4. ตรวจสอบสลิปซ้ำผ่านระบบ SHA-256 Hash
+    // 5. ตรวจสอบสลิปซ้ำผ่านระบบ SHA-256 Hash
     const imageHash = crypto.createHash('sha256').update(buffer).digest('hex');
     const usedSlips = getUsedSlips();
 
@@ -317,18 +319,18 @@ async function handleImageMessage(event) {
       return;
     }
 
-    // 5. บันทึกสถานะสลิปนี้ลงฐานข้อมูล
+    // 6. บันทึกสถานะสลิปนี้ลงฐานข้อมูล
     saveUsedSlip(imageHash);
 
     // ทำรายการสำเร็จ ล้างสถานะค่ายแดงของผู้ใช้นี้ออก
     redMenuUsers.delete(userId);
 
-    // 6. ส่งขั้นตอนการสมัครแพ็กเกจค่ายแดงสำเร็จผ่าน pushMessage
+    // 7. ส่งขั้นตอนการสมัครแพ็กเกจค่ายแดงสำเร็จ
     const successMessages = [
       {
         type: 'text',
         text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
-              `✅ ตรวจสอบสลิปและยอดเงิน 99/100 บาทสำเร็จเรียบร้อยแล้วค่ะ! 🎉\n\n` +
+              `✅ ตรวจสอบสลิปและยอดเงินถูกต้องเรียบร้อยแล้วค่ะ! 🎉\n\n` +
               `📲 **ขั้นตอนการสมัครเติมเงินเข้าเบอร์ 52 บาท**\n` +
               `━━━━━━━━━━━━━━━━━━━━━━\n` +
               `🔹 **ขั้นตอนที่ 1:** กด *900*3704# แล้วกดโทรออก\n` +
