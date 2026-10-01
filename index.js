@@ -36,9 +36,9 @@ function saveUsedSlip(identifier) {
 }
 
 // ===============================
-// เก็บสถานะผู้ใช้ว่าอยู่ระหว่างรอสลิปค่ายแดงหรือไม่
+// หน่วยความจำสถานะผู้ใช้ที่กำลังทำรายการค่ายแดง (Key: userId, Value: Timestamp)
 // ===============================
-const waitingForRedSlip = new Set();
+const redMenuUsers = new Set();
 
 // ===============================
 // WEBHOOK TEST
@@ -52,21 +52,17 @@ app.get('/webhook', (req, res) => {
 // ===============================
 function normalizeText(text) {
   if (!text) return '';
-
-  return text
-    .toString()
-    .trim()
-    .replace(/\s+/g, ' ');
+  return text.toString().trim().replace(/\s+/g, ' ');
 }
 
 // ===============================
-// REPLY TEXT
+// REPLY TEXT & STATE MANAGEMENT
 // ===============================
 function getReplyMessages(userMessage, userId) {
   const text = normalizeText(userMessage);
 
   // ==========================================
-  // โปรโมชั่น ค่ายแดง
+  // โปรโมชั่น ค่ายแดง (เปิดโหมดรอสลิปเฉพาะอันนี้)
   // ==========================================
   const redCommands = new Set([
     'ค่ายแดง',
@@ -79,9 +75,7 @@ function getReplyMessages(userMessage, userId) {
   ]);
 
   if (redCommands.has(text)) {
-    // บันทึกสถานะว่าผู้ใช้กำลังทำรายการค่ายแดง (รอสลิป)
-    if (userId) waitingForRedSlip.add(userId);
-
+    if (userId) redMenuUsers.add(userId);
     return [
       {
         type: 'text',
@@ -105,25 +99,15 @@ function getReplyMessages(userMessage, userId) {
     ];
   }
 
-  // หากพิมพ์ข้อความอื่นๆ ที่ไม่ใช่ค่ายแดง ให้ลบสถานะรอสลิปออก (ถ้ามี)
-  if (userId) waitingForRedSlip.delete(userId);
+  // หากพิมพ์เลือกเมนูอื่น ล้างสถานะค่ายแดงทันที
+  if (userId) redMenuUsers.delete(userId);
 
   // ==========================================
   // โปรโมชั่น ค่ายเขียว 300 บาท
   // ==========================================
   const green300Commands = new Set([
-    'ค่ายเขียว 300 บาท',
-    'ค่ายเขียว 300',
-    'โปรโมชั่นค่ายเขียว 300 บาท',
-    'โปรโมชั่นค่ายเขียว 300',
-    'ค่ายเขียว 300 บาท ลดสปีด',
-    'ค่ายเขียว 300 บาท จำกัด 100 GB',
-    'ค่ายเขียว 300 ลดสปีด',
-    'ค่ายเขียว 300 จำกัด 100 GB',
-    'AIS 300 บาท',
-    'AIS 300',
-    'โปรโมชั่น AIS 300 บาท',
-    'โปรโมชั่น AIS 300',
+    'ค่ายเขียว 300 บาท', 'ค่ายเขียว 300', 'โปรโมชั่นค่ายเขียว 300 บาท', 'โปรโมชั่นค่ายเขียว 300',
+    'ค่ายเขียว 300 บาท ลดสปีด', 'ค่ายเขียว 300 บาท จำกัด 100 GB', 'AIS 300 บาท', 'AIS 300'
   ]);
 
   if (green300Commands.has(text)) {
@@ -147,18 +131,8 @@ function getReplyMessages(userMessage, userId) {
   // โปรโมชั่น ค่ายเขียว 350 บาท
   // ==========================================
   const green350Commands = new Set([
-    'ค่ายเขียว 350 บาท',
-    'ค่ายเขียว 350',
-    'โปรโมชั่นค่ายเขียว 350 บาท',
-    'โปรโมชั่นค่ายเขียว 350',
-    'ค่ายเขียว 350 ไม่ลดสปีด',
-    'ค่ายเขียว 350 ไม่อั้น',
-    'ค่ายเขียว 350 บาท ไม่ลดสปีด',
-    'ค่ายเขียว 350 บาท ไม่อั้น',
-    'AIS 350 บาท',
-    'AIS 350',
-    'โปรโมชั่น AIS 350 บาท',
-    'โปรโมชั่น AIS 350',
+    'ค่ายเขียว 350 บาท', 'ค่ายเขียว 350', 'โปรโมชั่นค่ายเขียว 350 บาท', 'โปรโมชั่นค่ายเขียว 350',
+    'ค่ายเขียว 350 ไม่ลดสปีด', 'ค่ายเขียว 350 ไม่อั้น', 'AIS 350 บาท', 'AIS 350'
   ]);
 
   if (green350Commands.has(text)) {
@@ -181,49 +155,22 @@ function getReplyMessages(userMessage, userId) {
   // ==========================================
   // ต่อโปรโมชั่น
   // ==========================================
-  const renewCommands = new Set([
-    'ต่อโปรโปรโมชั่น',
-    'ต่อโปรโมชั่น',
-    'สอบถามโปรโมชั่น',
-    'ต่อโปร',
-    'ต่ออายุโปรโมชั่น',
-  ]);
-
+  const renewCommands = new Set(['ต่อโปรโปรโมชั่น', 'ต่อโปรโมชั่น', 'สอบถามโปรโมชั่น', 'ต่อโปร', 'ต่ออายุโปรโมชั่น']);
   if (renewCommands.has(text)) {
     return [
-      {
-        type: 'text',
-        text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟`
-      },
-      {
-        type: 'text',
-        text: `รับเรื่องต่อโปรโมชั่นให้เรียบร้อยค่ะ กำลังตามแอดมินใจดีมาดูแลต่อให้อย่างด่วนเลยนะคะ รอสักครู่นะคะ ⏳📅`
-      }
+      { type: 'text', text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟` },
+      { type: 'text', text: `รับเรื่องต่อโปรโมชั่นให้เรียบร้อยค่ะ กำลังตามแอดมินใจดีมาดูแลต่อให้อย่างด่วนเลยนะคะ รอสักครู่นะคะ ⏳📅` }
     ];
   }
 
   // ==========================================
   // ติดต่อแอดมิน / แจ้งปัญหา
   // ==========================================
-  const adminCommands = new Set([
-    'ติดต่อแอดมิน',
-    'แจ้งปัญหา/สอบถาม',
-    'แจ้งปัญหา',
-    'สอบถาม',
-    'ติดต่อเจ้าหน้าที่',
-    'แจ้งปัญหาและสอบถาม',
-  ]);
-
+  const adminCommands = new Set(['ติดต่อแอดมิน', 'แจ้งปัญหา/สอบถาม', 'แจ้งปัญหา', 'สอบถาม', 'ติดต่อเจ้าหน้าที่']);
   if (adminCommands.has(text)) {
     return [
-      {
-        type: 'text',
-        text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟`
-      },
-      {
-        type: 'text',
-        text: `รับทราบค่ะ! แจ้งรายละเอียดหรือปัญหาที่พบไว้ได้เลยนะคะ เดี๋ยว AI ตามแอดมินตัวจริงมาช่วยดูแลคุณลูกค้าทันทีค่ะ 🛠️💬`
-      }
+      { type: 'text', text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟` },
+      { type: 'text', text: `รับทราบค่ะ! แจ้งรายละเอียดหรือปัญหาที่พบไว้ได้เลยนะคะ เดี๋ยว AI ตามแอดมินตัวจริงมาช่วยดูแลคุณลูกค้าทันทีค่ะ 🛠️💬` }
     ];
   }
 
@@ -234,9 +181,7 @@ function getReplyMessages(userMessage, userId) {
 // HANDLE POSTBACK
 // ===============================
 function handlePostback(event) {
-  if (!event.postback || !event.postback.data) {
-    return null;
-  }
+  if (!event.postback || !event.postback.data) return null;
 
   const data = normalizeText(event.postback.data);
   const userId = event.source.userId;
@@ -244,14 +189,10 @@ function handlePostback(event) {
   const postbackMap = {
     'promotion_ais_300': 'ค่ายเขียว 300 บาท',
     'ais 300': 'ค่ายเขียว 300 บาท',
-    'ais 300 บาท': 'ค่ายเขียว 300 บาท',
     'green_300': 'ค่ายเขียว 300 บาท',
-
     'promotion_ais_350': 'ค่ายเขียว 350 บาท',
     'ais 350': 'ค่ายเขียว 350 บาท',
-    'ais 350 บาท': 'ค่ายเขียว 350 บาท',
     'green_350': 'ค่ายเขียว 350 บาท',
-
     'promotion_red': 'ค่ายแดง',
     'red': 'ค่ายแดง',
     'ค่ายแดง': 'ค่ายแดง',
@@ -262,31 +203,19 @@ function handlePostback(event) {
     return getReplyMessages(postbackMap[data], userId);
   }
 
-  if (userId) waitingForRedSlip.delete(userId);
+  if (userId) redMenuUsers.delete(userId);
 
   if (data === 'renew' || data === 'ต่อโปร') {
     return [
-      {
-        type: 'text',
-        text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟`
-      },
-      {
-        type: 'text',
-        text: `รับเรื่องต่อโปรโมชั่นให้เรียบร้อยค่ะ กำลังตามแอดมินใจดีมาดูแลต่อให้อย่างด่วนเลยนะคะ รอสักครู่นะคะ ⏳📅`
-      }
+      { type: 'text', text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟` },
+      { type: 'text', text: `รับเรื่องต่อโปรโมชั่นให้เรียบร้อยค่ะ กำลังตามแอดมินใจดีมาดูแลต่อให้อย่างด่วนเลยนะคะ รอสักครู่นะคะ ⏳📅` }
     ];
   }
 
   if (data === 'admin' || data === 'ติดต่อแอดมิน') {
     return [
-      {
-        type: 'text',
-        text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟`
-      },
-      {
-        type: 'text',
-        text: `รับทราบค่ะ! แจ้งรายละเอียดหรือปัญหาที่พบไว้ได้เลยนะคะ เดี๋ยว AI ตามแอดมินตัวจริงมาช่วยดูแลคุณลูกค้าทันทีค่ะ 🛠️💬`
-      }
+      { type: 'text', text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟` },
+      { type: 'text', text: `รับทราบค่ะ! แจ้งรายละเอียดหรือปัญหาที่พบไว้ได้เลยนะคะ เดี๋ยว AI ตามแอดมินตัวจริงมาช่วยดูแลคุณลูกค้าทันทีค่ะ 🛠️💬` }
     ];
   }
 
@@ -294,20 +223,19 @@ function handlePostback(event) {
 }
 
 // ===============================
-// HANDLE IMAGE (ตรวจสอบเฉพาะเมื่อเลือกเมนูค่ายแดงแล้วส่งรูปภาพ)
+// HANDLE IMAGE (ตรวจสอบสลิปทุกธนาคาร เฉพาะผู้ที่เลือกค่ายแดง)
 // ===============================
 async function handleImageMessage(event) {
   const userId = event.source.userId;
   const replyToken = event.replyToken;
 
-  // ตรวจสอบว่าผู้ใช้คนนี้ได้เลือกเมนู "ค่ายแดง" มาก่อนหน้านี้หรือไม่
-  if (!waitingForRedSlip.has(userId)) {
-    console.log('ℹ️ ผู้ใช้ไม่ได้อยู่ในขั้นตอนเลือกค่ายแดง ข้ามการตรวจสอบสลิป');
+  // 🛡️ ป้องกัน: ถ้ายูสเซอร์ไม่ได้อยู่ในสถานะเลือกค่ายแดง ให้ข้ามทันที 100% ไม่ยุ่งกับรูปค่ายอื่น
+  if (!redMenuUsers.has(userId)) {
     return;
   }
 
   try {
-    // 1. ดาวน์โหลดรูปภาพจาก LINE มาประมวลผล
+    // 1. ดึงข้อมูลภาพจาก LINE
     const stream = await client.getMessageContent(event.message.id);
     const chunks = [];
     for await (const chunk of stream) {
@@ -315,40 +243,49 @@ async function handleImageMessage(event) {
     }
     const buffer = Buffer.concat(chunks);
 
-    // 2. ใช้ Tesseract.js ตรวจสอบว่าภาพนี้มีคีย์เวิร์ดของสลิปโอนเงินหรือ QR Code หรือไม่
+    // 2. ใช้ Tesseract.js อ่านข้อความภาพ (รองรับภาษาไทย + อังกฤษ)
     const { data: { text } } = await Tesseract.recognize(buffer, 'tha+eng');
     const cleanText = text.replace(/\s+/g, '').toLowerCase();
 
-    // เงื่อนไขตรวจสอบว่าเป็นสลิปธนาคาร / มี QR Code หรือไม่
-    const isSlip = 
-      cleanText.includes('qrcode') || 
-      cleanText.includes('qr') || 
-      cleanText.includes('slipid') || 
-      cleanText.includes('โอนเงินสำเร็จ') ||
-      cleanText.includes('ref.') ||
-      cleanText.includes('ref:') ||
-      cleanText.includes('bangkokbank') || 
-      cleanText.includes('kbank') || 
-      cleanText.includes('scb') || 
-      cleanText.includes('krungthai') || 
-      cleanText.includes('krungsri') ||
-      cleanText.includes('truemoney');
+    // 🔍 ระบบตรวจสอบคีย์เวิร์ดสลิปธนาคารและกระเป๋าเงินอิเล็กทรอนิกส์ทั้งหมดในไทย
+    const slipKeywords = [
+      'qrcode', 'qr', 'slipid', 'ref.', 'ref:', 'โอนเงินสำเร็จ', 'completed', 'successful',
+      // ธนาคารกสิกรไทย (KBANK)
+      'kbank', 'kasikorn', 'กสิกรไทย',
+      // ธนาคารไทยพาณิชย์ (SCB)
+      'scb', 'thaipanich', 'ไทยพาณิชย์',
+      // ธนาคารกรุงเทพ (BBL)
+      'bangkokbank', 'bangkok', 'กรุงเทพ',
+      // ธนาคารกรุงไทย (KTB)
+      'krungthai', 'ktb', 'กรุงไทย',
+      // ธนาคารกรุงศรีอยุธยา (BAY)
+      'krungsri', 'bay', 'กรุงศรี',
+      // ธนาคารทหารไทยธนชาต (TTB)
+      'ttb', 'tmb', 'thanachart', 'ทหารไทย',
+      // ธนาคารออมสิน (GSB)
+      'gsb', 'ออมสิน',
+      // ธนาคารเพื่อการเกษตรและสหกรณ์การเกษตร (BAAC)
+      'baac', 'ธกส',
+      // ทรูมันนี่ วอลเล็ท (TrueMoney)
+      'truemoney', 'wallet', 'ทรูมันนี่'
+    ];
 
-    // ถ้าไม่ใช่สลิป ให้ข้ามการตรวจสอบไปเลยทันที
-    if (!isSlip) {
-      console.log('ℹ️️ รูปภาพที่ส่งมาไม่ใช่สลิปโอนเงิน (ไม่มี QR Code หรือคำว่าสลิป) ข้ามการทำงาน');
+    const isBankSlip = slipKeywords.some(keyword => cleanText.includes(keyword));
+
+    // ถ้าอยู่ในเมนูค่ายแดง แต่ภาพที่ส่งมาไม่ใช่สลิปธนาคาร ให้ข้ามการตรวจสอบ
+    if (!isBankSlip) {
       return; 
     }
 
-    // 3. หากเป็นสลิปจริง ตอบกลับด้วยข้อความกำลังตรวจสอบเพื่อปิด replyToken
+    // 3. ส่งข้อความกำลังตรวจสอบเพื่อตอบรับ replyToken ทันที
     await client.replyMessage(replyToken, [
       {
         type: 'text',
-        text: `🔍 ระบบกำลังตรวจสอบสลิปโอนเงินและป้องกันการใช้สลิปซ้ำ รอสักครู่นะคะ...`
+        text: `🔍 ระบบกำลังตรวจสอบสลิปโอนเงินทุกธนาคารและป้องกันการใช้สลิปซ้ำ รอสักครู่นะคะ...`
       }
     ]);
 
-    // 4. ป้องกันสลิปซ้ำด้วย Image Hash
+    // 4. ตรวจสอบสลิปซ้ำผ่านระบบ SHA-256 Hash
     const imageHash = crypto.createHash('sha256').update(buffer).digest('hex');
     const usedSlips = getUsedSlips();
 
@@ -361,13 +298,13 @@ async function handleImageMessage(event) {
       ]);
     }
 
-    // 5. บันทึก Hash สลิปนี้ลงฐานข้อมูลว่าใช้งานแล้ว
+    // 5. บันทึกสถานะสลิปนี้ลงฐานข้อมูล
     saveUsedSlip(imageHash);
 
-    // ทำรายการสำเร็จ ลบสถานะรอสลิปออก
-    waitingForRedSlip.delete(userId);
+    // ทำรายการสำเร็จ ล้างสถานะค่ายแดงของผู้ใช้นี้ออก
+    redMenuUsers.delete(userId);
 
-    // 6. ส่งข้อความขั้นตอนการสมัครแพ็กเกจค่ายแดง
+    // 6. ส่งขั้นตอนการสมัครแพ็กเกจค่ายแดงสำเร็จ
     const successMessages = [
       {
         type: 'text',
@@ -418,7 +355,6 @@ async function handleEvent(event) {
     if (
       event.type === 'message' &&
       event.message &&
-      event.message.type === 'type' || 
       event.message.type === 'text'
     ) {
       const userId = event.source.userId;
