@@ -39,10 +39,12 @@ function getReplyMessages(userMessage) {
   const text = normalizeText(userMessage);
 
   // ==========================================
-  // โปรโมชั่น ค่ายแดง (เพิ่มคำว่า ค่ายแดง ตรงๆ ที่คนมักกดจากเมนู)
+  // โปรโมชั่น ค่ายแดง (เพิ่มคำว่า ค่ายแดง 52 บาท และแบบต่างๆ ครบถ้วน)
   // ==========================================
   const redCommands = new Set([
     'ค่ายแดง',
+    'ค่ายแดง 52 บาท',
+    'ค่ายแดง 52',
     'โปรโมชั่นค่ายแดง',
     'โปรค่ายแดง 52 บาท',
     'True 52 บาท',
@@ -219,6 +221,7 @@ function handlePostback(event) {
     'promotion_red': 'ค่ายแดง',
     'red': 'ค่ายแดง',
     'ค่ายแดง': 'ค่ายแดง',
+    'ค่ายแดง 52 บาท': 'ค่ายแดง',
   };
 
   if (postbackMap[data]) {
@@ -273,7 +276,7 @@ async function handleEvent(event) {
     }
 
     // --------------------------------
-    // TEXT MESSAGE (รวมถึงปุ่ม Rich Menu แบบ Message Action ที่ส่งข้อความเข้าแชท)
+    // TEXT MESSAGE (รวมถึงปุ่ม Rich Menu แบบ Message Action)
     // --------------------------------
     if (
       event.type === 'message' &&
