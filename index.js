@@ -284,17 +284,18 @@ function handlePostback(event) {
 // ===============================
 async function handleImageMessage(event) {
   const userId = event.source.userId;
+  const replyToken = event.replyToken;
 
   try {
-    // แจ้งเตือนลูกค้าว่ากำลังตรวจสลิปค่ายแดง
-    await client.replyMessage(event.replyToken, [
+    // 1. ตอบกลับด้วยข้อความเพื่อปิด replyToken ทันที ป้องกัน Token หมดอายุ
+    await client.replyMessage(replyToken, [
       {
         type: 'text',
         text: `🔍 ระบบกำลังตรวจสอบสลิปและป้องกันการใช้สลิปซ้ำ (สำหรับค่ายแดง 52 บาท) รอสักครู่นะคะ...`
       }
     ]);
 
-    // ดาวน์โหลดรูปภาพสลิปจาก LINE
+    // 2. ดาวน์โหลดรูปภาพสลิปจาก LINE
     const stream = await client.getMessageContent(event.message.id);
     const chunks = [];
     for await (const chunk of stream) {
@@ -302,7 +303,7 @@ async function handleImageMessage(event) {
     }
     const buffer = Buffer.concat(chunks);
 
-    // ป้องกันสลิปซ้ำ: ตรวจสอบ Image Hash (เช็กไฟล์รูปซ้ำเป๊ะๆ)
+    // 3. ป้องกันสลิปซ้ำ: ตรวจสอบ Image Hash
     const imageHash = crypto.createHash('sha256').update(buffer).digest('hex');
     const usedSlips = getUsedSlips();
 
@@ -315,12 +316,12 @@ async function handleImageMessage(event) {
       ]);
     }
 
-    // ใช้ Tesseract.js อ่านข้อความในสลิป (OCR)
+    // 4. ใช้ Tesseract.js อ่านข้อความในสลิป (OCR)
     const { data: { text } } = await Tesseract.recognize(buffer, 'tha+eng');
     const cleanText = text.replace(/\s+/g, '');
     console.log('📄 ข้อความที่อ่านได้จากสลิป (ค่ายแดง):', cleanText);
 
-    // ตรวจสอบยอดเงิน (ต้องพบยอด 52 บาท)
+    // 5. ตรวจสอบยอดเงิน (ต้องพบยอด 52 บาท)
     const isAmountValid = cleanText.includes('52') || cleanText.includes('52.00');
 
     if (!isAmountValid) {
@@ -332,10 +333,10 @@ async function handleImageMessage(event) {
       ]);
     }
 
-    // บันทึก Hash ลงในรายการว่าใช้งานแล้ว
+    // 6. บันทึก Hash ลงในรายการว่าใช้งานแล้ว
     saveUsedSlip(imageHash);
 
-    // ส่งข้อความขั้นตอนการสมัครแพ็กเกจค่ายแดง 52 บาท
+    // 7. ส่งข้อความขั้นตอนการสมัครแพ็กเกจค่ายแดง 52 บาท
     const successMessages = [
       {
         type: 'text',
@@ -358,7 +359,7 @@ async function handleImageMessage(event) {
     await client.pushMessage(userId, [
       {
         type: 'text',
-        text: `⚠️ เกิดข้อผิดพลาดในการตรวจสอบสลิปอัตโนมัติ กรุณาส่งสลิปเข้ามาใหม่หรือติดต่อแอดมินค่ะ`
+        text: `⚠️️ เกิดข้อผิดพลาดในการตรวจสอบสลิปอัตโนมัติ กรุณาส่งสลิปเข้ามาใหม่หรือติดต่อแอดมินค่ะ`
       }
     ]);
   }
@@ -383,7 +384,7 @@ async function handleEvent(event) {
     }
 
     // --------------------------------
-    // IMAGE MESSAGE (ทำงานเฉพาะเมื่อลูกค้าส่งสลิปมา ซึ่งในระบบนี้ถูกเซ็ตไว้สำหรับค่ายแดง)
+    // IMAGE MESSAGE (ทำงานเฉพาะเมื่อส่งสลิปมา ซึ่งในที่นี้ใช้ตรวจค่ายแดง)
     // --------------------------------
     if (
       event.type === 'message' &&
