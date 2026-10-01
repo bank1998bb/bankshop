@@ -298,20 +298,28 @@ function handlePostback(event) {
 }
 
 // ===============================
-// HANDLE IMAGE (ตรวจสอบเฉพาะผู้ที่เลือกค่ายแดง)
+// HANDLE IMAGE (ตรวจสอบเฉพาะผู้ที่เลือกค่ายแดง และมีระบบแจ้งเตือนชัดเจน)
 // ===============================
 async function handleImageMessage(event) {
   const userId = event.source.userId;
   const replyToken = event.replyToken;
 
   try {
-    // ตรวจสอบว่าผู้ใช้กดค่ายแดงมาก่อนหรือไม่ (ถ้าไม่ใช่ค่ายแดง ข้ามทันที ไม่ยุ่งค่ายเขียว)
+    // 1. ตรวจสอบว่าผู้ใช้กดค่ายแดงมาก่อนหรือไม่
     if (userStates[userId] !== 'RED') {
       console.log(`ℹ️ ผู้ใช้ ${userId} ไม่ได้กดเลือกค่ายแดง (สถานะ: ${userStates[userId] || 'none'}) ข้ามการตรวจสอบสลิป`);
       return;
     }
 
-    // 1. ดาวน์โหลดรูปภาพจาก LINE มาประมวลผล
+    // แจ้งเตือนผู้ใช้ทันทีว่าระบบกำลังเริ่มสแกนรูปภาพ
+    await client.replyMessage(replyToken, [
+      {
+        type: 'text',
+        text: `🔍 ระบบกำลังตรวจสอบสลิปโอนเงินของคุณลูกค้า รอสักครู่นะคะ...`
+      }
+    ]);
+
+    // 2. ดาวน์โหลดรูปภาพจาก LINE มาประมวลผล
     const stream = await client.getMessageContent(event.message.id);
     const chunks = [];
     for await (const chunk of stream) {
@@ -319,16 +327,19 @@ async function handleImageMessage(event) {
     }
     const buffer = Buffer.concat(chunks);
 
-    // 2. ใช้ Tesseract.js ตรวจสอบข้อความในภาพ
+    // 3. ใช้ Tesseract.js ตรวจสอบข้อความในภาพ
+    console.log('🔄 กำลังอ่านข้อความจากสลิปด้วย OCR...');
     const { data: { text } } = await Tesseract.recognize(buffer, 'tha+eng');
     const cleanText = text.replace(/\s+/g, '').toLowerCase();
+    console.log('📝 ผลการสแกนข้อความ:', cleanText);
 
-    // เงื่อนไขสลิปธนาคาร / QR Code
+    // เงื่อนไขสลิปธนาคาร / QR Code / คำที่เกี่ยวข้องกับการโอนเงิน
     const isSlip = 
       cleanText.includes('qrcode') || 
       cleanText.includes('qr') || 
       cleanText.includes('slipid') || 
       cleanText.includes('โอนเงินสำเร็จ') ||
+      cleanText.includes('โอนสำเร็จ') ||
       cleanText.includes('ref.') ||
       cleanText.includes('ref:') ||
       cleanText.includes('bangkokbank') || 
@@ -336,21 +347,21 @@ async function handleImageMessage(event) {
       cleanText.includes('scb') || 
       cleanText.includes('krungthai') || 
       cleanText.includes('krungsri') ||
-      cleanText.includes('truemoney');
+      cleanText.includes('truemoney') ||
+      cleanText.includes('บาท') ||
+      cleanText.includes('ธนาคาร');
 
-    // ถ้าไม่ใช่สลิป ให้ข้าม
+    // ถ้า OCR อ่านแล้วไม่เข้าเงื่อนไขสลิป แจ้งเตือนกลับไปหาผู้ใช้
     if (!isSlip) {
-      console.log('ℹ️ รูปภาพที่ส่งมาไม่ใช่สลิปโอนเงิน ข้ามการทำงาน');
+      console.log('ℹ️ รูปภาพที่ส่งมาไม่ตรงกับรูปแบบสลิปโอนเงิน');
+      await client.pushMessage(userId, [
+        {
+          type: 'text',
+          text: `❌ รูปภาพที่คุณลูกค้าส่งมาไม่เข้าข่ายสลิปโอนเงิน หรือไม่พบ QR Code / ข้อมูลการโอน กรุณาส่งรูปสลิปใหม่อีกครั้งค่ะ`
+        }
+      ]);
       return; 
     }
-
-    // 3. ตอบกลับเพื่อรับ replyToken
-    await client.replyMessage(replyToken, [
-      {
-        type: 'text',
-        text: `🔍 ระบบกำลังตรวจสอบสลิปโอนเงินและป้องกันการใช้สลิปซ้ำ รอสักครู่นะคะ...`
-      }
-    ]);
 
     // 4. ป้องกันสลิปซ้ำด้วย Image Hash
     const imageHash = crypto.createHash('sha256').update(buffer).digest('hex');
