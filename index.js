@@ -83,7 +83,7 @@ function getReplyMessages(userMessage, userId) {
               `🔴 แพ็กเกจค่ายแดง\n` +
               `⚡ รายละเอียดแพ็กเกจ: 52 บาท\n` +
               `🚀 ความเร็วเน็ต: 6 Mbps\n` +
-              `♾️ รายละเอียด: เน็ตไม่อั้น ไม่ลดสปีด ไม่จำกัดการใช้งาน\n` +
+              `♾️️ รายละเอียด: เน็ตไม่อั้น ไม่ลดสปีด ไม่จำกัดการใช้งาน\n` +
               `⏳ ระยะเวลาการใช้งาน: 7 วัน\n` +
               `✨ การใช้งาน: ใช้งานได้ลื่นไหลไม่มีสะดุดค่ะ!`
       },
@@ -235,7 +235,15 @@ async function handleImageMessage(event) {
   }
 
   try {
-    // 1. ดึงข้อมูลภาพจาก LINE
+    // ⚡ 1. ตอบกลับข้อความแจ้งเตือนด่วนด้วย replyToken ทันที เพื่อไม่ให้ลูกค้ารอนาน
+    await client.replyMessage(replyToken, [
+      {
+        type: 'text',
+        text: `🔍 ระบบกำลังตรวจสอบสลิปโอนเงินทุกธนาคารและป้องกันการใช้สลิปซ้ำ รอสักครู่นะคะ...`
+      }
+    ]);
+
+    // 2. ดึงข้อมูลภาพจาก LINE
     const stream = await client.getMessageContent(event.message.id);
     const chunks = [];
     for await (const chunk of stream) {
@@ -243,7 +251,7 @@ async function handleImageMessage(event) {
     }
     const buffer = Buffer.concat(chunks);
 
-    // 2. ใช้ Tesseract.js อ่านข้อความภาพ (รองรับภาษาไทย + อังกฤษ)
+    // 3. ใช้ Tesseract.js อ่านข้อความภาพ (รองรับภาษาไทย + อังกฤษ)
     const { data: { text } } = await Tesseract.recognize(buffer, 'tha+eng');
     const cleanText = text.replace(/\s+/g, '').toLowerCase();
 
@@ -272,30 +280,29 @@ async function handleImageMessage(event) {
 
     const isBankSlip = slipKeywords.some(keyword => cleanText.includes(keyword));
 
-    // ถ้าอยู่ในเมนูค่ายแดง แต่ภาพที่ส่งมาไม่ใช่สลิปธนาคาร ให้ข้ามการตรวจสอบ
+    // ถ้าไม่ใช่สลิปธนาคาร ให้ส่งแจ้งเตือนผ่าน pushMessage
     if (!isBankSlip) {
+      await client.pushMessage(userId, [
+        {
+          type: 'text',
+          text: `❌ รูปภาพที่คุณส่งมาไม่ใช่สลิปโอนเงิน กรุณาส่งสลิปโอนเงินที่ถูกต้องใหม่อีกครั้งค่ะ`
+        }
+      ]);
       return; 
     }
-
-    // 3. ส่งข้อความกำลังตรวจสอบเพื่อตอบรับ replyToken ทันที
-    await client.replyMessage(replyToken, [
-      {
-        type: 'text',
-        text: `🔍 ระบบกำลังตรวจสอบสลิปโอนเงินทุกธนาคารและป้องกันการใช้สลิปซ้ำ รอสักครู่นะคะ...`
-      }
-    ]);
 
     // 4. ตรวจสอบสลิปซ้ำผ่านระบบ SHA-256 Hash
     const imageHash = crypto.createHash('sha256').update(buffer).digest('hex');
     const usedSlips = getUsedSlips();
 
     if (usedSlips.includes(imageHash)) {
-      return await client.pushMessage(userId, [
+      await client.pushMessage(userId, [
         {
           type: 'text',
           text: `❌ สลิปนี้ถูกใช้งานไปแล้วค่ะ!\nไม่อนุญาตให้นำสลิปเดิมมาส่งซ้ำ กรุณาใช้สลิปจริงในการทำรายการค่ะ`
         }
       ]);
+      return;
     }
 
     // 5. บันทึกสถานะสลิปนี้ลงฐานข้อมูล
@@ -304,7 +311,7 @@ async function handleImageMessage(event) {
     // ทำรายการสำเร็จ ล้างสถานะค่ายแดงของผู้ใช้นี้ออก
     redMenuUsers.delete(userId);
 
-    // 6. ส่งขั้นตอนการสมัครแพ็กเกจค่ายแดงสำเร็จ
+    // 6. ส่งขั้นตอนการสมัครแพ็กเกจค่ายแดงสำเร็จผ่าน pushMessage
     const successMessages = [
       {
         type: 'text',
