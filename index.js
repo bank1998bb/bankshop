@@ -1,5 +1,8 @@
 const express = require('express');
 const line = require('@line/bot-sdk');
+const fs = require('fs');
+const crypto = require('crypto');
+const Tesseract = require('tesseract.js');
 
 const config = {
   channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
@@ -12,6 +15,25 @@ const app = express();
 // LINE CLIENT
 // ===============================
 const client = new line.Client(config);
+
+// ===============================
+// ไฟล์เก็บประวัติสลิปที่ใช้แล้ว (ป้องกันสลิปซ้ำเฉพาะค่ายแดง)
+// ===============================
+const DB_FILE = './used_slips.json';
+
+function getUsedSlips() {
+  if (!fs.existsSync(DB_FILE)) {
+    fs.writeFileSync(DB_FILE, JSON.stringify([]));
+  }
+  const data = fs.readFileSync(DB_FILE);
+  return JSON.parse(data);
+}
+
+function saveUsedSlip(identifier) {
+  const slips = getUsedSlips();
+  slips.push(identifier);
+  fs.writeFileSync(DB_FILE, JSON.stringify(slips, null, 2));
+}
 
 // ===============================
 // WEBHOOK TEST
@@ -33,13 +55,13 @@ function normalizeText(text) {
 }
 
 // ===============================
-// REPLY TEXT (สำหรับผู้ใช้พิมพ์ข้อความมา หรือกดปุ่มริชเมนูแบบ Message)
+// REPLY TEXT
 // ===============================
 function getReplyMessages(userMessage) {
   const text = normalizeText(userMessage);
 
   // ==========================================
-  // โปรโมชั่น ค่ายแดง (เพิ่มคำว่า ค่ายแดง 52 บาท และแบบต่างๆ ครบถ้วน)
+  // โปรโมชั่น ค่ายแดง (เฉพาะค่ายนี้ที่จะต้องส่งสลิปตรวจอัตโนมัติ)
   // ==========================================
   const redCommands = new Set([
     'ค่ายแดง',
@@ -70,13 +92,13 @@ function getReplyMessages(userMessage) {
       },
       {
         type: 'text',
-        text: `💰 มีค่าบริการ 99 บาท ครั้งเดียว ชำระค่าบริการเสร็จส่งสลิปเข้ามาในแชตได้เลย เดี๋ยวแอดมินจะให้ขั้นตอนการสมัครค่ะ 😊`
+        text: `💰 มีค่าบริการ 52 บาท ชำระค่าบริการเสร็จส่งสลิปเข้ามาในแชตได้เลย ระบบจะตรวจสอบสลิปอัตโนมัติและส่งขั้นตอนการสมัครให้ทันทีค่ะ 😊`
       }
     ];
   }
 
   // ==========================================
-  // โปรโมชั่น ค่ายเขียว 300 บาท
+  // โปรโมชั่น ค่ายเขียว 300 บาท (ไม่ยุ่งเกี่ยวกับสลิป)
   // ==========================================
   const green300Commands = new Set([
     'ค่ายเขียว 300 บาท',
@@ -111,7 +133,7 @@ function getReplyMessages(userMessage) {
   }
 
   // ==========================================
-  // โปรโมชั่น ค่ายเขียว 350 บาท
+  // โปรโมชั่น ค่ายเขียว 350 บาท (ไม่ยุ่งเกี่ยวกับสลิป)
   // ==========================================
   const green350Commands = new Set([
     'ค่ายเขียว 350 บาท',
@@ -198,7 +220,7 @@ function getReplyMessages(userMessage) {
 }
 
 // ===============================
-// HANDLE POSTBACK (สำหรับปุ่ม Rich Menu แบบ Postback)
+// HANDLE POSTBACK
 // ===============================
 function handlePostback(event) {
   if (!event.postback || !event.postback.data) {
@@ -258,6 +280,91 @@ function handlePostback(event) {
 }
 
 // ===============================
+// HANDLE IMAGE (ตรวจสอบสลิปเฉพาะค่ายแดง 52 บาทเท่านั้น)
+// ===============================
+async function handleImageMessage(event) {
+  const userId = event.source.userId;
+
+  try {
+    // แจ้งเตือนลูกค้าว่ากำลังตรวจสลิปค่ายแดง
+    await client.replyMessage(event.replyToken, [
+      {
+        type: 'text',
+        text: `🔍 ระบบกำลังตรวจสอบสลิปและป้องกันการใช้สลิปซ้ำ (สำหรับค่ายแดง 52 บาท) รอสักครู่นะคะ...`
+      }
+    ]);
+
+    // ดาวน์โหลดรูปภาพสลิปจาก LINE
+    const stream = await client.getMessageContent(event.message.id);
+    const chunks = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    const buffer = Buffer.concat(chunks);
+
+    // ป้องกันสลิปซ้ำ: ตรวจสอบ Image Hash (เช็กไฟล์รูปซ้ำเป๊ะๆ)
+    const imageHash = crypto.createHash('sha256').update(buffer).digest('hex');
+    const usedSlips = getUsedSlips();
+
+    if (usedSlips.includes(imageHash)) {
+      return await client.pushMessage(userId, [
+        {
+          type: 'text',
+          text: `❌ สลิปนี้ถูกใช้งานไปแล้วค่ะ!\nไม่อนุญาตให้นำสลิปเดิมมาส่งซ้ำ กรุณาใช้สลิปจริงในการทำรายการค่ะ`
+        }
+      ]);
+    }
+
+    // ใช้ Tesseract.js อ่านข้อความในสลิป (OCR)
+    const { data: { text } } = await Tesseract.recognize(buffer, 'tha+eng');
+    const cleanText = text.replace(/\s+/g, '');
+    console.log('📄 ข้อความที่อ่านได้จากสลิป (ค่ายแดง):', cleanText);
+
+    // ตรวจสอบยอดเงิน (ต้องพบยอด 52 บาท)
+    const isAmountValid = cleanText.includes('52') || cleanText.includes('52.00');
+
+    if (!isAmountValid) {
+      return await client.pushMessage(userId, [
+        {
+          type: 'text',
+          text: `❌ ไม่พบยอดโอนเงิน 52 บาท หรือสลิปไม่ถูกต้องค่ะ\nกรุณาตรวจสอบความถูกต้องและส่งสลิปใหม่อีกครั้งนะคะ 😊`
+        }
+      ]);
+    }
+
+    // บันทึก Hash ลงในรายการว่าใช้งานแล้ว
+    saveUsedSlip(imageHash);
+
+    // ส่งข้อความขั้นตอนการสมัครแพ็กเกจค่ายแดง 52 บาท
+    const successMessages = [
+      {
+        type: 'text',
+        text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
+              `✅ ตรวจสอบสลิปยอดเงิน 52 บาท สำเร็จเรียบร้อยแล้วค่ะ! 🎉\n\n` +
+              `📲 **ขั้นตอนการสมัครเติมเงินเข้าเบอร์ 52 บาท**\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n` +
+              `🔹 **ขั้นตอนที่ 1:** กด *900*3704# แล้วกดโทรออก\n` +
+              `🔹 **ขั้นตอนที่ 2:** กด *900*8788# แล้วกดโทรออก\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `📶 **คำแนะนำเพิ่มเติม:**\n` +
+              `พอได้รับข้อความเน็ต 6 Mbps แล้ว สามารถปิด-เปิดโหมดเครื่องบิน (Airplane Mode) 1 รอบ แล้วสามารถใช้งานได้เลยค่ะ! 🚀✨`
+      }
+    ];
+
+    await client.pushMessage(userId, successMessages);
+
+  } catch (error) {
+    console.error('❌ Slip Verification Error:', error);
+    await client.pushMessage(userId, [
+      {
+        type: 'text',
+        text: `⚠️ เกิดข้อผิดพลาดในการตรวจสอบสลิปอัตโนมัติ กรุณาส่งสลิปเข้ามาใหม่หรือติดต่อแอดมินค่ะ`
+      }
+    ]);
+  }
+}
+
+// ===============================
 // HANDLE EVENT
 // ===============================
 async function handleEvent(event) {
@@ -276,7 +383,18 @@ async function handleEvent(event) {
     }
 
     // --------------------------------
-    // TEXT MESSAGE (รวมถึงปุ่ม Rich Menu แบบ Message Action)
+    // IMAGE MESSAGE (ทำงานเฉพาะเมื่อลูกค้าส่งสลิปมา ซึ่งในระบบนี้ถูกเซ็ตไว้สำหรับค่ายแดง)
+    // --------------------------------
+    if (
+      event.type === 'message' &&
+      event.message &&
+      event.message.type === 'image'
+    ) {
+      return await handleImageMessage(event);
+    }
+
+    // --------------------------------
+    // TEXT MESSAGE
     // --------------------------------
     if (
       event.type === 'message' &&
