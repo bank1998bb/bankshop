@@ -65,12 +65,12 @@ function getReplyMessages(userMessage) {
   // ==========================================
   const redCommands = new Set([
     'ค่ายแดง',
-    'ค่ายแดง 99 บาท',
-    'ค่ายแดง 99',
+    'ค่ายแดง 52 บาท',
+    'ค่ายแดง 52',
     'โปรโมชั่นค่ายแดง',
-    'โปรค่ายแดง 99 บาท',
-    'True 99 บาท',
-    'ทรู 99',
+    'โปรค่ายแดง 52 บาท',
+    'True 52 บาท',
+    'ทรู 52',
   ]);
 
   if (redCommands.has(text)) {
@@ -79,7 +79,7 @@ function getReplyMessages(userMessage) {
         type: 'text',
         text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
               `🔴 แพ็กเกจค่ายแดง\n` +
-              `⚡ รายละเอียดแพ็กเกจ: 99 บาท\n` +
+              `⚡ รายละเอียดแพ็กเกจ: 52 บาท\n` +
               `🚀 ความเร็วเน็ต: 6 Mbps\n` +
               `♾️ รายละเอียด: เน็ตไม่อั้น ไม่ลดสปีด ไม่จำกัดการใช้งาน\n` +
               `⏳ ระยะเวลาการใช้งาน: 7 วัน\n` +
@@ -243,7 +243,7 @@ function handlePostback(event) {
     'promotion_red': 'ค่ายแดง',
     'red': 'ค่ายแดง',
     'ค่ายแดง': 'ค่ายแดง',
-    'ค่ายแดง 99 บาท': 'ค่ายแดง',
+    'ค่ายแดง 52 บาท': 'ค่ายแดง',
   };
 
   if (postbackMap[data]) {
@@ -280,7 +280,7 @@ function handlePostback(event) {
 }
 
 // ===============================
-// HANDLE IMAGE (ตรวจสอบสลิปเฉพาะค่ายแดง 99 บาทเท่านั้น)
+// HANDLE IMAGE (ตรวจสอบสลิปเฉพาะค่ายแดง 52 บาทเท่านั้น)
 // ===============================
 async function handleImageMessage(event) {
   const userId = event.source.userId;
@@ -336,7 +336,7 @@ async function handleImageMessage(event) {
     // 6. บันทึก Hash ลงในรายการว่าใช้งานแล้ว
     saveUsedSlip(imageHash);
 
-    // 7. ส่งข้อความขั้นตอนการสมัครแพ็กเกจค่ายแดง 99 บาท
+    // 7. ส่งข้อความขั้นตอนการสมัครแพ็กเกจค่ายแดง 52 บาท
     const successMessages = [
       {
         type: 'text',
