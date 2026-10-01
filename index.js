@@ -1,7 +1,5 @@
 const express = require('express');
 const line = require('@line/bot-sdk');
-const fs = require('fs');
-const crypto = require('crypto');
 const Tesseract = require('tesseract.js');
 
 const config = {
@@ -17,59 +15,10 @@ const app = express();
 const client = new line.Client(config);
 
 // ======================================================
-// DATABASE สลิปที่ใช้แล้ว
-// ======================================================
-const DB_FILE = './used_slips.json';
-
-function getUsedSlips() {
-  try {
-    if (!fs.existsSync(DB_FILE)) {
-      fs.writeFileSync(DB_FILE, JSON.stringify([], null, 2));
-      return [];
-    }
-
-    const data = fs.readFileSync(DB_FILE, 'utf8');
-
-    if (!data.trim()) {
-      return [];
-    }
-
-    const parsed = JSON.parse(data);
-
-    return Array.isArray(parsed) ? parsed : [];
-
-  } catch (error) {
-    console.error('❌ อ่าน used_slips.json ไม่สำเร็จ:', error);
-    return [];
-  }
-}
-
-function saveUsedSlip(identifier) {
-  try {
-    const slips = getUsedSlips();
-
-    if (!slips.includes(identifier)) {
-      slips.push(identifier);
-    }
-
-    fs.writeFileSync(
-      DB_FILE,
-      JSON.stringify(slips, null, 2)
-    );
-
-  } catch (error) {
-    console.error('❌ บันทึกสลิปไม่สำเร็จ:', error);
-  }
-}
-
-// ======================================================
 // USER STATE
-//
-// waitingRedSlip = true
-// หมายถึงผู้ใช้เลือกค่ายแดงและกำลังรอสลิป
-//
-// waitingRedSlip = false
-// หมายถึงไม่ตรวจสอบรูป
+// ======================================================
+// true  = ผู้ใช้อยู่ในขั้นตอนค่ายแดงและกำลังรอสลิป
+// false = ไม่ตรวจสอบรูป
 // ======================================================
 const userStates = new Map();
 
@@ -116,10 +65,211 @@ function normalizeText(text) {
 }
 
 // ======================================================
+// ตรวจยอด 99 บาท
+// ======================================================
+function isCorrectAmount(cleanText) {
+
+  const amountPatterns = [
+    '99.00',
+    '99.00บาท',
+    '99บาท',
+    '99.00บาท',
+    'จำนวนเงิน99',
+    'ยอดเงิน99'
+  ];
+
+  return amountPatterns.some(pattern =>
+    cleanText.includes(
+      pattern.replace(/\s+/g, '').toLowerCase()
+    )
+  );
+}
+
+// ======================================================
+// ตรวจข้อความที่เป็นลักษณะของสลิป
+// ======================================================
+function analyzeSlipText(ocrText) {
+
+  const cleanText = ocrText
+    .replace(/\s+/g, '')
+    .toLowerCase();
+
+  // ==================================================
+  // คำที่พบบ่อยในสลิปธนาคาร
+  // ==================================================
+  const bankKeywords = [
+    'กสิกรไทย',
+    'kasikorn',
+    'kbank',
+
+    'ธนาคารกรุงเทพ',
+    'bangkokbank',
+
+    'ไทยพาณิชย์',
+    'scb',
+
+    'กรุงไทย',
+    'krungthai',
+
+    'กรุงศรี',
+    'krungsri',
+
+    'ทหารไทยธนชาต',
+    'ttb',
+
+    'ออมสิน',
+    'gsb',
+
+    'ธนาคารอาคารสงเคราะห์',
+    'ธกส',
+    'baac'
+  ];
+
+  // ==================================================
+  // คำที่พบบ่อยในข้อมูลรายการโอน
+  // ==================================================
+  const slipKeywords = [
+    'จำนวนเงิน',
+    'ค่าธรรมเนียม',
+    'วันที่ทำรายการ',
+    'วันที่',
+    'เวลา',
+    'โอนเงิน',
+    'โอนสำเร็จ',
+    'รายการสำเร็จ',
+    'สำเร็จ',
+    'ยอดเงิน',
+    'เงินออก',
+    'เงินเข้า',
+    'ผู้โอน',
+    'ผู้รับ',
+    'โอนจาก',
+    'โอนไปยัง',
+
+    'พร้อมเพย์',
+    'promptpay',
+
+    'ref',
+    'reference',
+    'transaction',
+
+    'qrcode',
+    'qr'
+  ];
+
+  const matchedBankKeywords =
+    bankKeywords.filter(keyword =>
+      cleanText.includes(
+        keyword
+          .replace(/\s+/g, '')
+          .toLowerCase()
+      )
+    );
+
+  const matchedSlipKeywords =
+    slipKeywords.filter(keyword =>
+      cleanText.includes(
+        keyword
+          .replace(/\s+/g, '')
+          .toLowerCase()
+      )
+    );
+
+  // ==================================================
+  // ตรวจยอด 99 บาท
+  // ==================================================
+  const correctAmount =
+    isCorrectAmount(cleanText);
+
+  // ==================================================
+  // คะแนนตรวจสอบ
+  //
+  // มีชื่อธนาคาร = 2 คะแนน
+  // มีข้อมูลสลิป = 1 คะแนนต่อคำ
+  // ยอด 99 บาท = 2 คะแนน
+  // ==================================================
+  let score = 0;
+
+  if (matchedBankKeywords.length > 0) {
+    score += 2;
+  }
+
+  score += Math.min(
+    matchedSlipKeywords.length,
+    3
+  );
+
+  if (correctAmount) {
+    score += 2;
+  }
+
+  // ==================================================
+  // ถือว่าเป็นสลิปเมื่อคะแนน >= 3
+  // ==================================================
+  const isSlip = score >= 3;
+
+  console.log('==============================');
+  console.log('🔎 SLIP ANALYSIS');
+  console.log('Bank:', matchedBankKeywords);
+  console.log('Slip:', matchedSlipKeywords);
+  console.log('Amount 99:', correctAmount);
+  console.log('Score:', score);
+  console.log('Is Slip:', isSlip);
+  console.log('==============================');
+
+  return {
+    isSlip,
+    correctAmount,
+    score,
+    matchedBankKeywords,
+    matchedSlipKeywords,
+    cleanText
+  };
+}
+
+// ======================================================
+// ข้อความหลังตรวจสลิปผ่าน
+// ======================================================
+function getRedSuccessMessage() {
+
+  return {
+    type: 'text',
+    text:
+      `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
+
+      `✅ ตรวจสอบสลิปโอนเงินเรียบร้อยแล้วค่ะ! 🎉\n` +
+
+      `💰 ยอดชำระ 99 บาท ตรวจสอบแล้วค่ะ\n\n` +
+
+      `📲 ขั้นตอนการสมัครค่ายแดง\n` +
+
+      `━━━━━━━━━━━━━━━━━━━━━━\n` +
+
+      `🔹 ขั้นตอนที่ 1\n` +
+      `กด *900*3704# แล้วกดโทรออก\n\n` +
+
+      `🔹 ขั้นตอนที่ 2\n` +
+      `กด *900*8788# แล้วกดโทรออก\n` +
+
+      `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+
+      `📶 หลังจากได้รับข้อความยืนยันแพ็กเกจ ` +
+      `เน็ต 6 Mbps แล้ว\n\n` +
+
+      `✈️ แนะนำให้ปิด-เปิดโหมดเครื่องบิน ` +
+      `(Airplane Mode) 1 รอบ\n\n` +
+
+      `🚀 จากนั้นสามารถใช้งานอินเทอร์เน็ตได้เลยค่ะ!`
+  };
+}
+
+// ======================================================
 // GET REPLY MESSAGES
 // ======================================================
 function getReplyMessages(userMessage, userId) {
-  const text = normalizeText(userMessage);
+
+  const text =
+    normalizeText(userMessage);
 
   // ==================================================
   // 🔴 ค่ายแดง
@@ -136,26 +286,34 @@ function getReplyMessages(userMessage, userId) {
 
   if (redCommands.has(text)) {
 
-    // เปิดโหมดรอสลิปค่ายแดง
-    setWaitingRedSlip(userId, true);
+    // เปิดโหมดตรวจสลิป
+    setWaitingRedSlip(
+      userId,
+      true
+    );
 
     return [
+
       {
         type: 'text',
         text:
           `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
+
           `🔴 แพ็กเกจค่ายแดง\n` +
           `⚡ รายละเอียดแพ็กเกจ: 52 บาท\n` +
           `🚀 ความเร็วเน็ต: 6 Mbps\n` +
-          `♾️ รายละเอียด: เน็ตไม่อั้น ไม่ลดสปีด ไม่จำกัดการใช้งาน\n` +
-          `⏳ ระยะเวลาการใช้งาน: 7 วัน\n` +
-          `✨ การใช้งาน: ใช้งานได้ลื่นไหลไม่มีสะดุดค่ะ!`
+          `♾️ เน็ตไม่อั้น ไม่ลดความเร็ว ไม่จำกัดการใช้งาน\n` +
+          `⏳ ระยะเวลาการใช้งาน: 7 วัน\n\n` +
+
+          `✨ ใช้งานได้ลื่นไหลไม่มีสะดุดค่ะ!`
       },
 
       {
         type: 'image',
+
         originalContentUrl:
           'https://i.ibb.co/tMR5CxTV/line-oa-chat-260714-124114.jpg',
+
         previewImageUrl:
           'https://i.ibb.co/tMR5CxTV/line-oa-chat-260714-124114.jpg'
       },
@@ -163,9 +321,11 @@ function getReplyMessages(userMessage, userId) {
       {
         type: 'text',
         text:
-          `💰 มีค่าบริการ 99 บาท\n\n` +
-          `ชำระค่าบริการเสร็จแล้วส่งสลิปเข้ามาในแชตได้เลยค่ะ 📷\n\n` +
-          `🔍 ระบบจะตรวจสอบสลิปอัตโนมัติและส่งขั้นตอนการสมัครให้ทันทีค่ะ 😊`
+          `💰 ค่าบริการ 99 บาท\n\n` +
+
+          `ชำระเงินเสร็จแล้วส่งรูปสลิปเข้ามาในแชตได้เลยค่ะ 📷\n\n` +
+
+          `🔍 ระบบจะตรวจสอบสลิปและส่งขั้นตอนสมัครให้โดยอัตโนมัติค่ะ`
       }
     ];
   }
@@ -190,18 +350,24 @@ function getReplyMessages(userMessage, userId) {
 
   if (green300Commands.has(text)) {
 
-    // ปิดการตรวจสลิปค่ายแดง
-    setWaitingRedSlip(userId, false);
+    // ปิดตรวจสลิปค่ายแดง
+    setWaitingRedSlip(
+      userId,
+      false
+    );
 
     return [
+
       {
         type: 'text',
         text:
           `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
+
           `🟢 แพ็กเกจค่ายเขียว 300 บาท\n` +
           `⚡ ความเร็วเน็ต: 10 Mbps\n` +
-          `📊 รายละเอียด: เน็ตลดสปีด จำกัดการใช้งาน 100 GB (ใช้งานได้ 30 วัน)\n` +
-          `🚀 การใช้งาน: ใช้งานได้ลื่นไหล ไม่มีสะดุดค่ะ!`
+          `📊 เน็ตสปีด จำกัดการใช้งาน 100 GB\n` +
+          `⏳ ใช้งานได้ 30 วัน\n` +
+          `🚀 ใช้งานได้ลื่นไหล ไม่มีสะดุดค่ะ!`
       },
 
       {
@@ -221,9 +387,9 @@ function getReplyMessages(userMessage, userId) {
     'ค่ายเขียว 350',
     'โปรโมชั่นค่ายเขียว 350 บาท',
     'โปรโมชั่นค่ายเขียว 350',
-    'ค่ายเขียว 350 ไม่ลดสปีด',
+    'ค่ายเขียว 350 ไม่ลดความเร็ว',
     'ค่ายเขียว 350 ไม่อั้น',
-    'ค่ายเขียว 350 บาท ไม่ลดสปีด',
+    'ค่ายเขียว 350 บาท ไม่ลดความเร็ว',
     'ค่ายเขียว 350 บาท ไม่อั้น',
     'AIS 350 บาท',
     'AIS 350',
@@ -233,18 +399,24 @@ function getReplyMessages(userMessage, userId) {
 
   if (green350Commands.has(text)) {
 
-    // ปิดการตรวจสลิปค่ายแดง
-    setWaitingRedSlip(userId, false);
+    // ปิดตรวจสลิปค่ายแดง
+    setWaitingRedSlip(
+      userId,
+      false
+    );
 
     return [
+
       {
         type: 'text',
         text:
           `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
+
           `🟢 แพ็กเกจค่ายเขียว 350 บาท\n` +
           `⚡ ความเร็วเน็ต: 10 Mbps\n` +
-          `♾️ รายละเอียด: เน็ตไม่อั้น ไม่ลดสปีด (ใช้งานได้ 30 วัน)\n` +
-          `🚀 การใช้งาน: ใช้งานได้ลื่นไหล ไม่มีสะดุด เต็มอิ่มจุใจค่ะ!`
+          `♾️ เน็ตไม่อั้น ไม่ลดความเร็ว\n` +
+          `⏳ ใช้งานได้ 30 วัน\n` +
+          `🚀 ใช้งานได้ลื่นไหล ไม่มีสะดุดค่ะ!`
       },
 
       {
@@ -269,7 +441,10 @@ function getReplyMessages(userMessage, userId) {
 
   if (renewCommands.has(text)) {
 
-    setWaitingRedSlip(userId, false);
+    setWaitingRedSlip(
+      userId,
+      false
+    );
 
     return [
       {
@@ -302,7 +477,10 @@ function getReplyMessages(userMessage, userId) {
 
   if (adminCommands.has(text)) {
 
-    setWaitingRedSlip(userId, false);
+    setWaitingRedSlip(
+      userId,
+      false
+    );
 
     return [
       {
@@ -327,15 +505,21 @@ function getReplyMessages(userMessage, userId) {
 // HANDLE POSTBACK
 // ======================================================
 function handlePostback(event) {
-  if (!event.postback || !event.postback.data) {
+
+  if (
+    !event.postback ||
+    !event.postback.data
+  ) {
     return null;
   }
 
-  const data = normalizeText(
-    event.postback.data
-  );
+  const data =
+    normalizeText(
+      event.postback.data
+    );
 
-  const userId = event.source.userId;
+  const userId =
+    event.source.userId;
 
   const postbackMap = {
 
@@ -450,7 +634,7 @@ function handlePostback(event) {
 }
 
 // ======================================================
-// HANDLE IMAGE
+// HANDLE IMAGE MESSAGE
 // ======================================================
 async function handleImageMessage(event) {
 
@@ -461,18 +645,17 @@ async function handleImageMessage(event) {
     event.replyToken;
 
   // ==================================================
-  // สำคัญมาก
+  // สำคัญที่สุด
   //
-  // ถ้าไม่ได้อยู่ใน flow ค่ายแดง
-  // จะไม่ดาวน์โหลดรูป
-  // จะไม่ OCR
-  // จะไม่ตรวจ QR
-  // จะไม่ตรวจสลิป
+  // ถ้าไม่ใช่ค่ายแดง
+  // ไม่ดาวน์โหลดรูป
+  // ไม่ OCR
+  // ไม่ตรวจสลิป
   // ==================================================
   if (!isWaitingRedSlip(userId)) {
 
     console.log(
-      `📷 ${userId} ส่งรูป แต่ไม่ใช่ flow ค่ายแดง → ข้าม`
+      `📷 ${userId} ส่งรูป แต่ไม่ได้อยู่ในค่ายแดง → ข้ามการตรวจ`
     );
 
     return null;
@@ -481,8 +664,7 @@ async function handleImageMessage(event) {
   try {
 
     // ==================================================
-    // ตอบกลับทันที
-    // ไม่รอ OCR
+    // ตอบทันที
     // ==================================================
     await client.replyMessage(
       replyToken,
@@ -496,11 +678,11 @@ async function handleImageMessage(event) {
     );
 
     console.log(
-      `🔴 ${userId} → เริ่มตรวจสอบสลิป`
+      `🔴 ${userId} → เริ่มตรวจสลิปค่ายแดง`
     );
 
     // ==================================================
-    // ดาวน์โหลดรูป
+    // ดาวน์โหลดรูปจาก LINE
     // ==================================================
     const stream =
       await client.getMessageContent(
@@ -524,13 +706,40 @@ async function handleImageMessage(event) {
     // OCR
     // ==================================================
     console.log(
-      `🔎 เริ่ม OCR: ${userId}`
+      `🔎 เริ่ม OCR...`
     );
 
     const result =
       await Tesseract.recognize(
         buffer,
-        'tha+eng'
+        'tha+eng',
+        {
+          logger: info => {
+
+            if (
+              info.status ===
+              'recognizing text'
+            ) {
+
+              const progress =
+                Math.round(
+                  (info.progress || 0) * 100
+                );
+
+              if (
+                progress === 25 ||
+                progress === 50 ||
+                progress === 75 ||
+                progress === 100
+              ) {
+
+                console.log(
+                  `🔎 OCR ${progress}%`
+                );
+              }
+            }
+          }
+        }
       );
 
     const ocrText =
@@ -540,80 +749,24 @@ async function handleImageMessage(event) {
         ? result.data.text
         : '';
 
-    const cleanText =
-      ocrText
-        .replace(/\s+/g, '')
-        .toLowerCase();
-
     console.log(
-      `📝 OCR RESULT:\n${ocrText.substring(0, 1000)}`
+      `📝 OCR TEXT:\n${ocrText}`
     );
 
     // ==================================================
-    // KEYWORDS สลิป
+    // วิเคราะห์สลิป
     // ==================================================
-    const slipKeywords = [
-
-      'qrcode',
-      'qr',
-
-      'slipid',
-
-      'โอนเงินสำเร็จ',
-      'โอนสำเร็จ',
-      'รายการสำเร็จ',
-
-      'สำเร็จ',
-
-      'จำนวนเงิน',
-      'ยอดเงิน',
-
-      'ref.',
-      'ref:',
-      'reference',
-
-      'bangkokbank',
-      'kbank',
-      'kasikorn',
-      'scb',
-      'krungthai',
-      'krungsri',
-      'truemoney',
-
-      'พร้อมเพย์',
-      'promptpay',
-
-      'โอนจาก',
-      'โอนไปยัง'
-    ];
-
-    const matchedKeywords =
-      slipKeywords.filter(
-        keyword =>
-          cleanText.includes(
-            keyword
-              .replace(/\s+/g, '')
-              .toLowerCase()
-          )
+    const analysis =
+      analyzeSlipText(
+        ocrText
       );
 
-    const isSlip =
-      matchedKeywords.length > 0;
-
-    console.log(
-      `🔎 Slip Result: ${isSlip ? 'พบสลิป' : 'ไม่พบสลิป'}`
-    );
-
-    console.log(
-      `🔎 Matched:`,
-      matchedKeywords
-    );
-
     // ==================================================
-    // ไม่ใช่สลิป
+    // ไม่พบข้อมูลสลิป
     // ==================================================
-    if (!isSlip) {
+    if (!analysis.isSlip) {
 
+      // ยังคงรอสลิป
       setWaitingRedSlip(
         userId,
         true
@@ -624,8 +777,10 @@ async function handleImageMessage(event) {
         {
           type: 'text',
           text:
-            `❌ ระบบยังตรวจไม่พบว่าเป็นสลิปโอนเงินค่ะ\n\n` +
-            `กรุณาส่งรูปสลิปโอนเงินที่เห็นข้อมูลชัดเจนอีกครั้งนะคะ 📷`
+            `❌ ระบบยังอ่านข้อมูลสลิปไม่ชัดเจนค่ะ\n\n` +
+
+            `กรุณาส่งรูปสลิปโอนเงินแบบเต็มใบ ` +
+            `และให้เห็นข้อมูลจำนวนเงิน/ธนาคารชัดเจนอีกครั้งนะคะ 📷`
         }
       );
 
@@ -633,60 +788,26 @@ async function handleImageMessage(event) {
     }
 
     // ==================================================
-    // HASH รูป
+    // พบสลิป
+    //
+    // ไม่ตรวจ Hash
+    // ไม่ตรวจสลิปซ้ำ
+    // ไม่ใช้ used_slips.json
     // ==================================================
-    const imageHash =
-      crypto
-        .createHash('sha256')
-        .update(buffer)
-        .digest('hex');
-
     console.log(
-      `🔐 Hash: ${imageHash}`
-    );
-
-    // ==================================================
-    // ตรวจสลิปซ้ำ
-    // ==================================================
-    const usedSlips =
-      getUsedSlips();
-
-    if (
-      usedSlips.includes(imageHash)
-    ) {
-
-      setWaitingRedSlip(
-        userId,
-        false
-      );
-
-      await client.pushMessage(
-        userId,
-        {
-          type: 'text',
-          text:
-            `❌ สลิปนี้ถูกใช้งานไปแล้วค่ะ!\n\n` +
-            `ระบบไม่อนุญาตให้นำสลิปเดิมมาใช้ซ้ำค่ะ\n` +
-            `กรุณาใช้สลิปใหม่ในการทำรายการนะคะ`
-        }
-      );
-
-      return null;
-    }
-
-    // ==================================================
-    // บันทึกสลิป
-    // ==================================================
-    saveUsedSlip(
-      imageHash
+      `✅ พบข้อมูลสลิป`
     );
 
     console.log(
-      `💾 บันทึกสลิปใหม่แล้ว`
+      `💰 ยอด 99 บาท: ${
+        analysis.correctAmount
+          ? 'ถูกต้อง'
+          : 'ไม่พบยอด 99'
+      }`
     );
 
     // ==================================================
-    // ปิดโหมดรอสลิป
+    // ปิดสถานะรอสลิป
     // ==================================================
     setWaitingRedSlip(
       userId,
@@ -694,35 +815,15 @@ async function handleImageMessage(event) {
     );
 
     // ==================================================
-    // SUCCESS
+    // ส่งขั้นตอนต่อทันที
     // ==================================================
     await client.pushMessage(
       userId,
-      {
-        type: 'text',
-        text:
-          `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
-
-          `✅ ตรวจสอบสลิปโอนเงินสำเร็จเรียบร้อยแล้วค่ะ! 🎉\n\n` +
-
-          `📲 ขั้นตอนการสมัครเติมเงินเข้าเบอร์ 52 บาท\n` +
-
-          `━━━━━━━━━━━━━━━━━━━━━━\n` +
-
-          `🔹 ขั้นตอนที่ 1: กด *900*3704# แล้วกดโทรออก\n` +
-
-          `🔹 ขั้นตอนที่ 2: กด *900*8788# แล้วกดโทรออก\n` +
-
-          `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-
-          `📶 พอได้รับข้อความเน็ต 6 Mbps แล้ว ` +
-          `สามารถปิด-เปิดโหมดเครื่องบิน (Airplane Mode) 1 รอบ ` +
-          `แล้วใช้งานได้เลยค่ะ! 🚀✨`
-      }
+      getRedSuccessMessage()
     );
 
     console.log(
-      `🎉 ${userId} ตรวจสลิปสำเร็จ`
+      `🎉 ${userId} ตรวจสลิปผ่าน → ส่งขั้นตอนสมัครแล้ว`
     );
 
     return null;
@@ -731,7 +832,8 @@ async function handleImageMessage(event) {
 
     console.error(
       '❌ Slip Verification Error:',
-      error && error.stack
+      error &&
+      error.stack
         ? error.stack
         : error
     );
@@ -874,7 +976,7 @@ app.post(
         status: 'ok'
       });
 
-      // ประมวลผลต่อเบื้องหลัง
+      // ประมวลผลต่อ
       if (events.length > 0) {
 
         await Promise.allSettled(
@@ -897,7 +999,6 @@ app.post(
         res.status(200).json({
           status: 'ok'
         });
-
       }
     }
   }
@@ -919,7 +1020,6 @@ app.use(
       res.status(200).json({
         status: 'ok'
       });
-
     }
   }
 );
@@ -944,6 +1044,14 @@ app.listen(
 
     console.log(
       `🔴 Slip verification: RED MENU ONLY`
+    );
+
+    console.log(
+      `💰 Required amount: 99 THB`
+    );
+
+    console.log(
+      `🔁 Duplicate slip checking: DISABLED`
     );
   }
 );
