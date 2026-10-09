@@ -31,11 +31,9 @@ function normalizeText(text) {
 // ===============================
 // REPLY TEXT MESSAGES
 // ===============================
-function getReplyMessages(userMessage) {
-  const text = normalizeText(userMessage);
-
-  // Debug ดูข้อความที่เข้ามาใน Console
-  console.log('📥 Incoming Message/Data:', text);
+function getReplyMessages(rawText) {
+  const text = normalizeText(rawText);
+  console.log('🔍 ข้อความหรือ Data ที่เข้ามาประมวลผล:', text);
 
   // ==========================================
   // โปรโมชั่น AIS 300 บาท
@@ -131,30 +129,34 @@ function getReplyMessages(userMessage) {
 }
 
 // ===============================
-// HANDLE EVENT (รองรับทั้ง Message และ Postback)
+// HANDLE EVENT (ดักจับทุกประเภททั้ง Message และ Postback)
 // ===============================
 async function handleEvent(event) {
   try {
-    let incomingText = '';
+    let payload = '';
 
-    if (event.type === 'postback' && event.postback && event.postback.data) {
-      incomingText = event.postback.data;
-    } else if (event.type === 'message' && event.message && event.message.type === 'text') {
-      incomingText = event.message.text;
+    // เช็กถ้าเป็นการกดปุ่ม Postback จากริชเมนู
+    if (event.type === 'postback') {
+      if (event.postback && event.postback.data) {
+        payload = event.postback.data;
+      }
+    } 
+    // เช็กถ้าเป็นการพิมพ์ข้อความปกติ
+    else if (event.type === 'message' && event.message) {
+      if (event.message.type === 'text') {
+        payload = event.message.text;
+      }
     }
 
-    if (!incomingText) return null;
+    if (!payload) return null;
 
-    const replyMessages = getReplyMessages(incomingText);
+    const replyMessages = getReplyMessages(payload);
     if (!replyMessages) return null;
 
     return await client.replyMessage(event.replyToken, replyMessages);
 
   } catch (error) {
-    console.error(
-      '❌ Error handling event:',
-      error && error.response ? error.response.data : error
-    );
+    console.error('❌ Error handling event:', error);
     return null;
   }
 }
