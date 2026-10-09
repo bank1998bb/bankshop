@@ -39,10 +39,10 @@ function getReplyMessages(userMessage) {
   // ==========================================
   const ais300Commands = new Set([
     'ais 300 บาท', 'ais 300', 'โปรโมชั่น ais 300 บาท', 'โปรโมชั่น ais 300',
-    'ais 300 บาท ลดสปีด', 'ais 300 บาท จำกัด 100 gb'
+    'ais 300 บาท ลดสปีด', 'ais 300 บาท จำกัด 100 gb', 'ais_300', 'promotion_ais_300'
   ]);
 
-  if (ais300Commands.has(text)) {
+  if (ais300Commands.has(text) || text.includes('ais 300') || text.includes('ais_300')) {
     return [
       {
         type: 'text',
@@ -64,10 +64,10 @@ function getReplyMessages(userMessage) {
   // ==========================================
   const ais350Commands = new Set([
     'ais 350 บาท', 'ais 350', 'โปรโมชั่น ais 350 บาท', 'โปรโมชั่น ais 350',
-    'ais 350 ไม่ลดสปีด', 'ais 350 ไม่อั้น'
+    'ais 350 ไม่ลดสปีด', 'ais 350 ไม่อั้น', 'ais_350', 'promotion_ais_350'
   ]);
 
-  if (ais350Commands.has(text)) {
+  if (ais350Commands.has(text) || text.includes('ais 350') || text.includes('ais_350')) {
     return [
       {
         type: 'text',
@@ -89,10 +89,10 @@ function getReplyMessages(userMessage) {
   // ==========================================
   const true300Commands = new Set([
     'true 300 บาท', 'true 300', 'โปรโมชั่น true 300 บาท', 'โปรโมชั่น true 300',
-    'ทรู 300 บาท', 'ทรู 300', 'true 300 บาท ลดสปีด'
+    'ทรู 300 บาท', 'ทรู 300', 'true 300 บาท ลดสปีด', 'true_300', 'promotion_true_300'
   ]);
 
-  if (true300Commands.has(text)) {
+  if (true300Commands.has(text) || text.includes('true 300') || text.includes('true_300') || text.includes('ทรู 300')) {
     return [
       {
         type: 'text',
@@ -114,10 +114,10 @@ function getReplyMessages(userMessage) {
   // ==========================================
   const true350Commands = new Set([
     'true 350 บาท', 'true 350', 'โปรโมชั่น true 350 บาท', 'โปรโมชั่น true 350',
-    'ทรู 350 บาท', 'ทรู 350', 'true 350 ไม่ลดสปีด', 'true 350 ไม่อั้น'
+    'ทรู 350 บาท', 'ทรู 350', 'true 350 ไม่ลดสปีด', 'true 350 ไม่อั้น', 'true_350', 'promotion_true_350'
   ]);
 
-  if (true350Commands.has(text)) {
+  if (true350Commands.has(text) || text.includes('true 350') || text.includes('true_350') || text.includes('ทรู 350')) {
     return [
       {
         type: 'text',
@@ -137,8 +137,8 @@ function getReplyMessages(userMessage) {
   // ==========================================
   // ติดต่อแอดมิน / แจ้งปัญหา
   // ==========================================
-  const adminCommands = new Set(['ติดต่อแอดมิน', 'แจ้งปัญหา/สอบถาม', 'แจ้งปัญหา', 'สอบถาม', 'ติดต่อเจ้าหน้าที่']);
-  if (adminCommands.has(text)) {
+  const adminCommands = new Set(['ติดต่อแอดมิน', 'แจ้งปัญหา/สอบถาม', 'แจ้งปัญหา', 'สอบถาม', 'ติดต่อเจ้าหน้าที่', 'admin']);
+  if (adminCommands.has(text) || text.includes('แอดมิน') || text.includes('admin')) {
     return [
       { type: 'text', text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟` },
       { type: 'text', text: `รับทราบค่ะ! แจ้งรายละเอียดหรือปัญหาที่พบไว้ได้เลยนะคะ เดี๋ยว AI ตามแอดมินตัวจริงมาช่วยดูแลคุณลูกค้าทันทีค่ะ 🛠️💬` }
@@ -155,6 +155,7 @@ function handlePostback(event) {
   if (!event.postback || !event.postback.data) return null;
 
   const data = normalizeText(event.postback.data);
+  console.log('📌 Received Postback Data:', data); // ช่วยให้คุณดูค่าที่ส่งมาจากลิสต์เมนูใน Log ได้
 
   // Map ค่า Postback data ให้ตรงกับคำสั่งข้อความ
   const postbackMap = {
