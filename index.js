@@ -1,6 +1,5 @@
 const express = require('express');
 const line = require('@line/bot-sdk');
-const fs = require('fs');
 
 const config = {
   channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
@@ -30,7 +29,7 @@ function normalizeText(text) {
 }
 
 // ===============================
-// REPLY TEXT & STATE MANAGEMENT
+// REPLY TEXT MESSAGES
 // ===============================
 function getReplyMessages(userMessage) {
   const text = normalizeText(userMessage);
@@ -136,17 +135,6 @@ function getReplyMessages(userMessage) {
   }
 
   // ==========================================
-  // ต่อโปรโมชั่น
-  // ==========================================
-  const renewCommands = new Set(['ต่อโปรโปรโมชั่น', 'ต่อโปรโมชั่น', 'สอบถามโปรโมชั่น', 'ต่อโปร', 'ต่ออายุโปรโมชั่น']);
-  if (renewCommands.has(text)) {
-    return [
-      { type: 'text', text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟` },
-      { type: 'text', text: `รับเรื่องต่อโปรโมชั่นให้เรียบร้อยค่ะ กำลังตามแอดมินใจดีมาดูแลต่อให้อย่างด่วนเลยนะคะ รอสักครู่นะคะ ⏳📅` }
-    ];
-  }
-
-  // ==========================================
   // ติดต่อแอดมิน / แจ้งปัญหา
   // ==========================================
   const adminCommands = new Set(['ติดต่อแอดมิน', 'แจ้งปัญหา/สอบถาม', 'แจ้งปัญหา', 'สอบถาม', 'ติดต่อเจ้าหน้าที่']);
@@ -161,13 +149,14 @@ function getReplyMessages(userMessage) {
 }
 
 // ===============================
-// HANDLE POSTBACK
+// HANDLE POSTBACK (รองรับการกดจาก Rich Menu)
 // ===============================
 function handlePostback(event) {
   if (!event.postback || !event.postback.data) return null;
 
   const data = normalizeText(event.postback.data);
 
+  // Map ค่า Postback data ให้ตรงกับคำสั่งข้อความ
   const postbackMap = {
     'promotion_ais_300': 'AIS 300 บาท',
     'ais 300': 'AIS 300 บาท',
@@ -181,27 +170,12 @@ function handlePostback(event) {
     'promotion_true_350': 'TRUE 350 บาท',
     'true 350': 'TRUE 350 บาท',
     'true_350': 'TRUE 350 บาท',
+    'admin': 'ติดต่อแอดมิน',
+    'ติดต่อแอดมิน': 'ติดต่อแอดมิน'
   };
 
-  if (postbackMap[data]) {
-    return getReplyMessages(postbackMap[data]);
-  }
-
-  if (data === 'renew' || data === 'ต่อโปร') {
-    return [
-      { type: 'text', text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟` },
-      { type: 'text', text: `รับเรื่องต่อโปรโมชั่นให้เรียบร้อยค่ะ กำลังตามแอดมินใจดีมาดูแลต่อให้อย่างด่วนเลยนะคะ รอสักครู่นะคะ ⏳📅` }
-    ];
-  }
-
-  if (data === 'admin' || data === 'ติดต่อแอดมิน') {
-    return [
-      { type: 'text', text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟` },
-      { type: 'text', text: `รับทราบค่ะ! แจ้งรายละเอียดหรือปัญหาที่พบไว้ได้เลยนะคะ เดี๋ยว AI ตามแอดมินตัวจริงมาช่วยดูแลคุณลูกค้าทันทีค่ะ 🛠️💬` }
-    ];
-  }
-
-  return null;
+  const targetMessage = postbackMap[data] || data;
+  return getReplyMessages(targetMessage);
 }
 
 // ===============================
