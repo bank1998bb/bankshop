@@ -7,17 +7,51 @@ const config = {
 };
 
 const app = express();
+const client = new line.Client(config);
 
 // ===============================
-// LINE CLIENT
+// DATABASE / PACKAGES DATA
 // ===============================
-const client = new line.Client(config);
+const PACKAGES = [
+  {
+    keywords: ['ais 300', 'ais_300', 'ค่ายเขียว 300'],
+    brand: 'AIS',
+    price: '300 บาท',
+    speed: '10 Mbps',
+    detail: 'เน็ตไม่อั้น (จำกัดความเร็ว 100 GB หลังจากนั้นใช้งานต่อเนื่อง) นาน 30 วัน',
+    highlight: 'ใช้งานได้ลื่นไหล คุ้มค่าโดนใจ'
+  },
+  {
+    keywords: ['ais 350', 'ais_350', 'ค่ายเขียว 350'],
+    brand: 'AIS',
+    price: '350 บาท',
+    speed: '10 Mbps',
+    detail: 'เน็ตไม่อั้น ไม่ลดสปีด ใช้งานได้ไม่อั้น นาน 30 วัน',
+    highlight: 'สตรีมมิ่ง ดูหนัง ฟังเพลง จุใจไม่มีสะดุด'
+  },
+  {
+    keywords: ['true 300', 'true_300', 'ทรู 300'],
+    brand: 'TRUE',
+    price: '300 บาท',
+    speed: '15 Mbps',
+    detail: 'เน็ตไม่อั้น (จำกัดความเร็ว 100 GB หลังจากนั้นใช้งานต่อเนื่อง) นาน 30 วัน',
+    highlight: 'เน็ตแรงเต็มสปีด คุ้มค่าประหยัด'
+  },
+  {
+    keywords: ['true 350', 'true_350', 'ทรู 350'],
+    brand: 'TRUE',
+    price: '350 บาท',
+    speed: '15 Mbps',
+    detail: 'เน็ตไม่อั้น ไม่ลดสปีด ใช้งานได้ไม่อั้น นาน 30 วัน',
+    highlight: 'แรงไม่มีตก เต็มอิ่มทุกความบันเทิง'
+  }
+];
 
 // ===============================
 // WEBHOOK TEST
 // ===============================
 app.get('/webhook', (req, res) => {
-  res.status(200).send('OK');
+  res.status(200).send('OK - LINE Bot Server is running.');
 });
 
 // ===============================
@@ -29,103 +63,44 @@ function normalizeText(text) {
 }
 
 // ===============================
-// REPLY TEXT MESSAGES
+// REPLY MESSAGES GENERATOR
 // ===============================
 function getReplyMessages(rawText) {
   const text = normalizeText(rawText);
   console.log('🔍 ข้อความหรือ Data ที่เข้ามาประมวลผล:', text);
 
-  // ==========================================
-  // โปรโมชั่น AIS 300 บาท
-  // ==========================================
-  if (text.includes('ais 300') || text.includes('ais_300') || text.includes('ค่ายเขียว 300')) {
+  // 1. ตรวจสอบแพ็กเกจอินเทอร์เน็ตจากอาร์เรย์ข้อมูล
+  const matchedPackage = PACKAGES.find(pkg => 
+    pkg.keywords.some(keyword => text.includes(keyword))
+  );
+
+  if (matchedPackage) {
+    const brandEmoji = matchedPackage.brand === 'AIS' ? '🟢' : '🔴';
     return [
       {
         type: 'text',
-        text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
-              `🟢 แพ็กเกจ AIS 300 บาท\n` +
-              `⚡ ความเร็วเน็ต: 10 Mbps\n` +
-              `📊 รายละเอียด: เน็ตลดสปีด จำกัดการใช้งาน 100 GB (ใช้งานได้ 30 วัน)\n` +
-              `💳 ค่าใช้จ่าย: ตามโปรโมชั่น ไม่มีคิดค่าบริการเพิ่มเติม\n` +
-              `🚀 การใช้งาน: ใช้งานได้ลื่นไหล ไม่มีสะดุดค่ะ!`
+        text: `🤖 **AI สมาร์ท พร้อมให้บริการค่ะ!** 🌟\n\n` +
+              `${brandEmoji} **แพ็กเกจ ${matchedPackage.brand} ${matchedPackage.price}**\n` +
+              `⚡ **ความเร็วสูงสุด:** ${matchedPackage.speed}\n` +
+              `📍 **เงื่อนไข:** ${matchedPackage.detail}\n` +
+              `🚀 **จุดเด่น:** ${matchedPackage.highlight}\n\n` +
+              `💳 *ราคาเบ็ดเสร็จ ไม่มีบวกเพิ่ม*`
       },
       {
         type: 'text',
-        text: `💡 สนใจรับแพ็กเกจนี้ แจ้งเบอร์โทรของคุณลูกค้าไว้ได้เลยนะคะ เดี๋ยว AI ส่งต่อให้แอดมินดูแลต่อทันทีค่ะ ✨📱`
+        text: `💡 **สนใจรับโปรโมชั่นนี้ แจ้งเบอร์โทรของคุณลูกค้าไว้ได้เลยนะคะ** เดี๋ยวระบบส่งต่อให้แอดมินดูแลการสมัครให้ทันทีค่ะ ✨📱`
       }
     ];
   }
 
-  // ==========================================
-  // โปรโมชั่น AIS 350 บาท
-  // ==========================================
-  if (text.includes('ais 350') || text.includes('ais_350') || text.includes('ค่ายเขียว 350')) {
+  // 2. ติดต่อแอดมิน / แจ้งปัญหา
+  if (['แอดมิน', 'admin', 'ติดต่อ', 'แจ้งปัญหา', 'เจ้าหน้าที่'].some(kw => text.includes(kw))) {
     return [
-      {
-        type: 'text',
-        text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
-              `🟢 แพ็กเกจ AIS 350 บาท\n` +
-              `⚡ ความเร็วเน็ต: 10 Mbps\n` +
-              `♾️ รายละเอียด: เน็ตไม่อั้น ไม่ลดสปีด (ใช้งานได้ 30 วัน)\n` +
-              `💳 ค่าใช้จ่าย: ตามโปรโมชั่น ไม่มีคิดค่าบริการเพิ่มเติม\n` +
-              `🚀 การใช้งาน: ใช้งานได้ลื่นไหล ไม่มีสะดุด เต็มอิ่มจุใจค่ะ!`
-      },
-      {
-        type: 'text',
-        text: `💡 สนใจรับแพ็กเกจนี้ แจ้งเบอร์โทรของคุณลูกค้าไว้ได้เลยนะคะ เดี๋ยว AI ส่งต่อให้แอดมินดูแลต่อทันทีค่ะ ✨📱`
+      { 
+        type: 'text', 
+        text: `🤖 **AI สมาร์ท ยินดีให้บริการค่ะ!** 🌟\n\n` +
+              `รับทราบค่ะ! คุณลูกค้าสามารถพิมพ์แจ้งรายละเอียดหรือปัญหาที่พบไว้ได้เลยนะคะ เดี๋ยวแอดมินตัวจริงรีบเข้ามาดูแลทันทีค่ะ 🛠️💬` 
       }
-    ];
-  }
-
-  // ==========================================
-  // โปรโมชั่น TRUE 300 บาท
-  // ==========================================
-  if (text.includes('true 300') || text.includes('true_300') || text.includes('ทรู 300')) {
-    return [
-      {
-        type: 'text',
-        text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
-              `🔴 แพ็กเกจ TRUE 300 บาท\n` +
-              `⚡ ความเร็วเน็ต: 15 Mbps\n` +
-              `📊 รายละเอียด: เน็ตลดสปีด จำกัดการใช้งาน 100 GB (ใช้งานได้ 30 วัน)\n` +
-              `💳 ค่าใช้จ่าย: ตามโปรโมชั่น ไม่มีคิดค่าบริการเพิ่มเติม\n` +
-              `🚀 การใช้งาน: ใช้งานได้ลื่นไหล ไม่มีสะดุดค่ะ!`
-      },
-      {
-        type: 'text',
-        text: `💡 สนใจรับแพ็กเกจนี้ แจ้งเบอร์โทรของคุณลูกค้าไว้ได้เลยนะคะ เดี๋ยว AI ส่งต่อให้แอดมินดูแลต่อทันทีค่ะ ✨📱`
-      }
-    ];
-  }
-
-  // ==========================================
-  // โปรโมชั่น TRUE 350 บาท
-  // ==========================================
-  if (text.includes('true 350') || text.includes('true_350') || text.includes('ทรู 350')) {
-    return [
-      {
-        type: 'text',
-        text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟\n\n` +
-              `🔴 แพ็กเกจ TRUE 350 บาท\n` +
-              `⚡ ความเร็วเน็ต: 15 Mbps\n` +
-              `♾️ รายละเอียด: เน็ตไม่อั้น ไม่ลดสปีด (ใช้งานได้ 30 วัน)\n` +
-              `💳 ค่าใช้จ่าย: ตามโปรโมชั่น ไม่มีคิดค่าบริการเพิ่มเติม\n` +
-              `🚀 การใช้งาน: ใช้งานได้ลื่นไหล ไม่มีสะดุด เต็มอิ่มจุใจค่ะ!`
-      },
-      {
-        type: 'text',
-        text: `💡 สนใจรับแพ็กเกจนี้ แจ้งเบอร์โทรของคุณลูกค้าไว้ได้เลยนะคะ เดี๋ยว AI ส่งต่อให้แอดมินดูแลต่อทันทีค่ะ ✨📱`
-      }
-    ];
-  }
-
-  // ==========================================
-  // ติดต่อแอดมิน / แจ้งปัญหา
-  // ==========================================
-  if (text.includes('แอดมิน') || text.includes('admin') || text.includes('ติดต่อ') || text.includes('แจ้งปัญหา')) {
-    return [
-      { type: 'text', text: `🤖 AI สมาร์ท ยินดีให้บริการค่ะ! 🌟` },
-      { type: 'text', text: `รับทราบค่ะ! แจ้งรายละเอียดหรือปัญหาที่พบไว้ได้เลยนะคะ เดี๋ยว AI ตามแอดมินตัวจริงมาช่วยดูแลคุณลูกค้าทันทีค่ะ 🛠️💬` }
     ];
   }
 
@@ -133,23 +108,16 @@ function getReplyMessages(rawText) {
 }
 
 // ===============================
-// HANDLE EVENT (ดักจับทุกประเภททั้ง Message และ Postback)
+// HANDLE EVENT
 // ===============================
 async function handleEvent(event) {
   try {
     let payload = '';
 
-    // เช็กถ้าเป็นการกดปุ่ม Postback จากริชเมนู
-    if (event.type === 'postback') {
-      if (event.postback && event.postback.data) {
-        payload = event.postback.data;
-      }
-    } 
-    // เช็กถ้าเป็นการพิมพ์ข้อความปกติ
-    else if (event.type === 'message' && event.message) {
-      if (event.message.type === 'text') {
-        payload = event.message.text;
-      }
+    if (event.type === 'postback' && event.postback?.data) {
+      payload = event.postback.data;
+    } else if (event.type === 'message' && event.message?.type === 'text') {
+      payload = event.message.text;
     }
 
     if (!payload) return null;
@@ -166,29 +134,23 @@ async function handleEvent(event) {
 }
 
 // ===============================
-// WEBHOOK
+// WEBHOOK ENDPOINT
 // ===============================
-app.post(
-  '/webhook',
-  line.middleware(config),
-  async (req, res) => {
-    try {
-      const events = req.body.events || [];
-      res.status(200).json({ status: 'ok' });
+app.post('/webhook', line.middleware(config), async (req, res) => {
+  try {
+    const events = req.body.events || [];
+    res.status(200).json({ status: 'ok' });
 
-      if (events.length > 0) {
-        await Promise.allSettled(
-          events.map(event => handleEvent(event))
-        );
-      }
-    } catch (error) {
-      console.error('❌ Webhook Error:', error);
-      if (!res.headersSent) {
-        res.status(200).json({ status: 'ok' });
-      }
+    if (events.length > 0) {
+      await Promise.allSettled(events.map(event => handleEvent(event)));
+    }
+  } catch (error) {
+    console.error('❌ Webhook Error:', error);
+    if (!res.headersSent) {
+      res.status(200).json({ status: 'ok' });
     }
   }
-);
+});
 
 // ===============================
 // ERROR HANDLER
@@ -201,10 +163,10 @@ app.use((err, req, res, next) => {
 });
 
 // ===============================
-// SERVER
+// SERVER START
 // ===============================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 LINE Bot Server running on port ${PORT}`);
-  console.log(`📡 Webhook: /webhook`);
+  console.log(`📡 Webhook Endpoint: /webhook`);
 });
