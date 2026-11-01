@@ -2,11 +2,11 @@ const express = require('express');
 const line = require('@line/bot-sdk');
 
 // ===============================
-// 🔑 ใส่ Channel Access Token และ Channel Secret ของคุณตรงนี้
+// 🔑 ตั้งค่า LINE Messaging API Token & Secret
 // ===============================
 const config = {
-  channelAccessToken: 'ใส่_Channel_Access_Token_ของคุณตรงนี้',
-  channelSecret: 'ใส่_Channel_Secret_ของคุณตรงนี้',
+  channelAccessToken: 'tI4rvXRh22w/HvzrfBulBYV9xUTA0vk+Zns0wVQLjOLRWUmDhOohqs7RTrjTBNz7nt2iAIRsIAFVKNwnQj2VtYVCwKZYuDpy85K/Esz65dYfU/fBat2xJ4k4ay/aiSTZVXpY0L7ALL+9d2lsGoihZwdB04t89/1O/w1cDnyilFU=',
+  channelSecret: '66feb451d12a4806de38da67fa08ce5c',
 };
 
 const app = express();
@@ -222,13 +222,15 @@ function buildPackageFlexCard(pkg) {
 // REPLY MESSAGES GENERATOR
 // ===============================
 function getReplyMessages(rawText) {
-  const text = normalizeText(rawText);
-  console.log('🔍 ประมวลผลข้อความ:', text);
+  if (!rawText) return null;
+  const cleanText = rawText.toString().trim();
+  console.log('🔍 ข้อความที่ได้รับ:', cleanText);
 
   // 1. ตรวจสอบเบอร์โทรศัพท์มือถือ 10 หลัก (เช่น 0812345678, 0612345678, 0912345678)
-  const phoneMatch = rawText.match(/0[689]\d{8}/);
+  const phoneMatch = cleanText.match(/0[689]\d{8}/);
   if (phoneMatch) {
     const phoneNumber = phoneMatch[0];
+    console.log('📞 ตรวจพบเบอร์โทรศัพท์:', phoneNumber);
     return [
       {
         type: 'text',
@@ -246,9 +248,10 @@ function getReplyMessages(rawText) {
     ];
   }
 
-  // 2. ตรวจสอบการสอบถามแพ็กเกจอินเทอร์เน็ต (ส่งเฉพาะ Flex Message การ์ดโปรโมชั่น)
+  // 2. ตรวจสอบการสอบถามแพ็กเกจอินเทอร์เน็ต
+  const textLower = normalizeText(cleanText);
   const matchedPackage = PACKAGES.find(pkg =>
-    pkg.keywords.some(keyword => text.includes(keyword))
+    pkg.keywords.some(keyword => textLower.includes(keyword))
   );
 
   if (matchedPackage) {
@@ -258,7 +261,7 @@ function getReplyMessages(rawText) {
   }
 
   // 3. ติดต่อแอดมิน / แจ้งปัญหา
-  if (['แอดมิน', 'admin', 'ติดต่อ', 'แจ้งปัญหา', 'เจ้าหน้าที่'].some(kw => text.includes(kw))) {
+  if (['แอดมิน', 'admin', 'ติดต่อ', 'แจ้งปัญหา', 'เจ้าหน้าที่'].some(kw => textLower.includes(kw))) {
     return [
       {
         type: 'text',
