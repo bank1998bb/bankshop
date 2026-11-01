@@ -16,7 +16,7 @@ const lineClient = new line.messagingApi.MessagingApiClient({
 // ===============================
 // DATABASE / PACKAGES DATA
 // ===============================
-const HIGHLIGHT_TEXT = 'แรงไม่มีตก เต็ม Speed ตลอดการใช้งาน';
+const HIGHLIGHT_TEXT = 'ใช้งานได้ลื่นไหลไม่มีสะดุด เน็ตแรงเต็มสปีด';
 
 const PACKAGES = [
   {
@@ -309,7 +309,7 @@ app.use((err, req, res, next) => {
 
 // ===============================
 // SERVER START
-// ===============================
+-- ===============================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server connected on port ${PORT}`);
