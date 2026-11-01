@@ -1,20 +1,20 @@
 const express = require('express');
-const line = require('@line/bot-sdk');
+const crypto = require('crypto');
 
 // ===============================
-// 🔑 ตั้งค่า LINE Messaging API Token & Secret
+// 🔑 ตั้งค่า LINE Messaging API Token & Secret ของคุณ
 // ===============================
-const config = {
-  channelAccessToken: 'tI4rvXRh22w/HvzrfBulBYV9xUTA0vk+Zns0wVQLjOLRWUmDhOohqs7RTrjTBNz7nt2iAIRsIAFVKNwnQj2VtYVCwKZYuDpy85K/Esz65dYfU/fBat2xJ4k4ay/aiSTZVXpY0L7ALL+9d2lsGoihZwdB04t89/1O/w1cDnyilFU=',
-  channelSecret: '66feb451d12a4806de38da67fa08ce5c',
-};
+const CHANNEL_ACCESS_TOKEN = 'tI4rvXRh22w/HvzrfBulBYV9xUTA0vk+Zns0wVQLjOLRWUmDhOohqs7RTrjTBNz7nt2iAIRsIAFVKNwnQj2VtYVCwKZYuDpy85K/Esz65dYfU/fBat2xJ4k4ay/aiSTZVXpY0L7ALL+9d2lsGoihZwdB04t89/1O/w1cDnyilFU=';
+const CHANNEL_SECRET = '66feb451d12a4806de38da67fa08ce5c';
 
 const app = express();
 
-// ใช้ SDK MessagingApiClient เวอร์ชันปัจจุบัน
-const lineClient = new line.messagingApi.MessagingApiClient({
-  channelAccessToken: config.channelAccessToken
-});
+// ใช้ express.json() เพื่อรับค่า JSON จาก LINE Webhook โดยตรง
+app.use(express.json({
+  verify: (req, res, buf) => {
+    req.rawBody = buf; // เก็บ Raw Body ไว้เช็กความปลอดภัย LINE Signature
+  }
+}));
 
 // ===============================
 // DATABASE / PACKAGES DATA
@@ -24,17 +24,15 @@ const APP_IMAGE_URL = 'https://i.ibb.co/k2h8DbsW/White-and-Black-Minimalist-Phon
 
 const PACKAGES = [
   {
-    id: 'ais_300',
     keywords: ['ais 300', 'ais_300', 'ค่ายเขียว 300'],
     brand: 'AIS',
     price: '300',
     speed: '10 Mbps',
     detail: 'เน็ตไม่อั้น ใช้งานได้ 100 GB (หากใช้งานหมด 100 GB แล้ว จะไม่สามารถใช้งานต่อได้ในรอบนั้น) นาน 30 วัน',
     highlight: HIGHLIGHT_TEXT,
-    themeColor: '#00B900' // เขียว AIS
+    themeColor: '#00B900'
   },
   {
-    id: 'ais_350',
     keywords: ['ais 350', 'ais_350', 'ค่ายเขียว 350'],
     brand: 'AIS',
     price: '350',
@@ -44,17 +42,15 @@ const PACKAGES = [
     themeColor: '#00B900'
   },
   {
-    id: 'true_300',
     keywords: ['true 300', 'true_300', 'ทรู 300'],
     brand: 'TRUE',
     price: '300',
     speed: '15 Mbps',
     detail: 'เน็ตไม่อั้น ใช้งานได้ 100 GB (หากใช้งานหมด 100 GB แล้ว จะไม่สามารถใช้งานต่อได้ในรอบนั้น) นาน 30 วัน',
     highlight: HIGHLIGHT_TEXT,
-    themeColor: '#E60000' // แดง TRUE
+    themeColor: '#E60000'
   },
   {
-    id: 'true_350',
     keywords: ['true 350', 'true_350', 'ทรู 350'],
     brand: 'TRUE',
     price: '350',
@@ -66,11 +62,27 @@ const PACKAGES = [
 ];
 
 // ===============================
-// WEBHOOK HEALTH CHECK
+// FUNCTION: ส่งข้อความหา LINE API โดยตรง
 // ===============================
-app.get('/webhook', (req, res) => {
-  res.status(200).send('🚀 Modern LINE Bot Server is up and running!');
-});
+async function replyMessage(replyToken, messages) {
+  try {
+    const response = await fetch('https://api.line.me/v2/bot/message/reply', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${CHANNEL_ACCESS_TOKEN}`
+      },
+      body: JSON.stringify({ replyToken, messages })
+    });
+    
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('❌ LINE API Error:', errText);
+    }
+  } catch (err) {
+    console.error('❌ Error sending message:', err);
+  }
+}
 
 // ===============================
 // NORMALIZE TEXT
@@ -81,7 +93,7 @@ function normalizeText(text) {
 }
 
 // ===============================
-// MODERN FLEX MESSAGE GENERATOR
+// FLEX MESSAGE GENERATOR
 // ===============================
 function buildPackageFlexCard(pkg) {
   return {
@@ -100,36 +112,15 @@ function buildPackageFlexCard(pkg) {
             type: 'box',
             layout: 'horizontal',
             contents: [
-              {
-                type: 'text',
-                text: pkg.brand,
-                weight: 'bold',
-                color: '#FFFFFF',
-                size: 'xs',
-                flex: 0
-              }
+              { type: 'text', text: pkg.brand, weight: 'bold', color: '#FFFFFF', size: 'xs', flex: 0 }
             ],
             backgroundColor: '#00000033',
             paddingHorizontal: '10px',
             paddingVertical: '3px',
             cornerRadius: '20px'
           },
-          {
-            type: 'text',
-            text: `แพ็กเกจ ${pkg.price} บาท`,
-            weight: 'bold',
-            size: 'xxl',
-            color: '#FFFFFF',
-            margin: 'md'
-          },
-          {
-            type: 'text',
-            text: `⚡ ความเร็วสูงสุด ${pkg.speed}`,
-            size: 'md',
-            color: '#FFFFFFEE',
-            weight: 'bold',
-            margin: 'xs'
-          }
+          { type: 'text', text: `แพ็กเกจ ${pkg.price} บาท`, weight: 'bold', size: 'xxl', color: '#FFFFFF', margin: 'md' },
+          { type: 'text', text: `⚡ ความเร็วสูงสุด ${pkg.speed}`, size: 'md', color: '#FFFFFFEE', weight: 'bold', margin: 'xs' }
         ]
       },
       body: {
@@ -140,24 +131,10 @@ function buildPackageFlexCard(pkg) {
           {
             type: 'box',
             layout: 'vertical',
-            margin: 'none',
             spacing: 'sm',
             contents: [
-              {
-                type: 'text',
-                text: '✨ จุดเด่นแพ็กเกจ',
-                size: 'xs',
-                color: '#888888',
-                weight: 'bold'
-              },
-              {
-                type: 'text',
-                text: `🔥 ${pkg.highlight}`,
-                size: 'sm',
-                color: '#111111',
-                weight: 'bold',
-                wrap: true
-              }
+              { type: 'text', text: '✨ จุดเด่นแพ็กเกจ', size: 'xs', color: '#888888', weight: 'bold' },
+              { type: 'text', text: `🔥 ${pkg.highlight}`, size: 'sm', color: '#111111', weight: 'bold', wrap: true }
             ]
           },
           { type: 'separator', margin: 'lg' },
@@ -167,20 +144,8 @@ function buildPackageFlexCard(pkg) {
             margin: 'lg',
             spacing: 'xs',
             contents: [
-              {
-                type: 'text',
-                text: '📋 เงื่อนไขการใช้งาน',
-                size: 'xs',
-                color: '#888888',
-                weight: 'bold'
-              },
-              {
-                type: 'text',
-                text: pkg.detail,
-                size: 'sm',
-                color: '#555555',
-                wrap: true
-              }
+              { type: 'text', text: '📋 เงื่อนไขการใช้งาน', size: 'xs', color: '#888888', weight: 'bold' },
+              { type: 'text', text: pkg.detail, size: 'sm', color: '#555555', wrap: true }
             ]
           }
         ]
@@ -196,21 +161,13 @@ function buildPackageFlexCard(pkg) {
             style: 'primary',
             color: pkg.themeColor,
             height: 'sm',
-            action: {
-              type: 'message',
-              label: `สมัครแพ็กเกจ ${pkg.brand} ${pkg.price}฿`,
-              text: `สนใจสมัครแพ็กเกจ ${pkg.brand} ${pkg.price} บาท`
-            }
+            action: { type: 'message', label: `สมัครแพ็กเกจ ${pkg.brand} ${pkg.price}฿`, text: `สนใจสมัครแพ็กเกจ ${pkg.brand} ${pkg.price} บาท` }
           },
           {
             type: 'button',
             style: 'secondary',
             height: 'sm',
-            action: {
-              type: 'message',
-              label: 'สอบถามแอดมิน',
-              text: 'ติดต่อแอดมิน'
-            }
+            action: { type: 'message', label: 'สอบถามแอดมิน', text: 'ติดต่อแอดมิน' }
           }
         ]
       }
@@ -226,13 +183,13 @@ function getReplyMessages(rawText) {
   const cleanText = rawText.toString().trim();
   console.log('🔍 ข้อความที่ได้รับ:', cleanText);
 
-  // 1. ตรวจสอบเบอร์โทรศัพท์ (แปลงข้อความโดยลบขีด/ช่องว่างออกก่อน แล้วหาตัวเลข 10 หลักขึ้นต้นด้วย 0)
+  // 1. ตรวจสอบเบอร์โทรศัพท์มือถือ 10 หลัก (ลบขีด/ช่องว่างออกก่อนค้นหา)
   const digitsOnly = cleanText.replace(/[-\s]/g, '');
   const phoneMatch = digitsOnly.match(/0\d{9}/);
 
   if (phoneMatch) {
     const phoneNumber = phoneMatch[0];
-    console.log('📞 ตรวจพบเบอร์โทรศัพท์สำเร็จ:', phoneNumber);
+    console.log('📞 ตรวจพบเบอร์โทรศัพท์:', phoneNumber);
     return [
       {
         type: 'text',
@@ -250,16 +207,14 @@ function getReplyMessages(rawText) {
     ];
   }
 
-  // 2. ตรวจสอบการสอบถามแพ็กเกจอินเทอร์เน็ต
+  // 2. ตรวจสอบแพ็กเกจอินเทอร์เน็ต
   const textLower = normalizeText(cleanText);
   const matchedPackage = PACKAGES.find(pkg =>
     pkg.keywords.some(keyword => textLower.includes(keyword))
   );
 
   if (matchedPackage) {
-    return [
-      buildPackageFlexCard(matchedPackage)
-    ];
+    return [buildPackageFlexCard(matchedPackage)];
   }
 
   // 3. ติดต่อแอดมิน / แจ้งปัญหา
@@ -276,14 +231,17 @@ function getReplyMessages(rawText) {
 }
 
 // ===============================
-// WEBHOOK MIDDLEWARE & ENDPOINT
+// WEBHOOK ENDPOINT
 // ===============================
-app.post('/webhook', line.middleware(config), async (req, res) => {
+app.get('/webhook', (req, res) => {
+  res.status(200).send('🚀 Native LINE Bot Server is running smoothly!');
+});
+
+app.post('/webhook', async (req, res) => {
+  res.status(200).end(); // ตอบ LINE กลับทันทีเพื่อป้องกัน Timeout
+
   try {
     const events = req.body.events || [];
-    // ตอบกลับ LINE Platform ทันทีเพื่อกัน Timeout
-    res.status(200).end();
-
     for (const event of events) {
       let payload = '';
 
@@ -293,27 +251,16 @@ app.post('/webhook', line.middleware(config), async (req, res) => {
         payload = event.message.text;
       }
 
-      if (payload) {
+      if (payload && event.replyToken) {
         const replyMessages = getReplyMessages(payload);
         if (replyMessages) {
-          await lineClient.replyMessage({
-            replyToken: event.replyToken,
-            messages: replyMessages
-          });
+          await replyMessage(event.replyToken, replyMessages);
         }
       }
     }
   } catch (error) {
-    console.error('❌ Webhook Error:', error);
+    console.error('❌ Webhook Processing Error:', error);
   }
-});
-
-// ===============================
-// ERROR HANDLER
-// ===============================
-app.use((err, req, res, next) => {
-  console.error('❌ Server Error:', err);
-  res.status(200).end();
 });
 
 // ===============================
@@ -321,6 +268,5 @@ app.use((err, req, res, next) => {
 // ===============================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Modern LINE Bot Server running on port ${PORT}`);
-  console.log(`📡 Ready for Webhook events at /webhook`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
