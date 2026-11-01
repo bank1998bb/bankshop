@@ -226,11 +226,13 @@ function getReplyMessages(rawText) {
   const cleanText = rawText.toString().trim();
   console.log('🔍 ข้อความที่ได้รับ:', cleanText);
 
-  // 1. ตรวจสอบเบอร์โทรศัพท์มือถือ 10 หลัก (เช่น 0812345678, 0612345678, 0912345678)
-  const phoneMatch = cleanText.match(/0[689]\d{8}/);
+  // 1. ตรวจสอบเบอร์โทรศัพท์ (แปลงข้อความโดยลบขีด/ช่องว่างออกก่อน แล้วหาตัวเลข 10 หลักขึ้นต้นด้วย 0)
+  const digitsOnly = cleanText.replace(/[-\s]/g, '');
+  const phoneMatch = digitsOnly.match(/0\d{9}/);
+
   if (phoneMatch) {
     const phoneNumber = phoneMatch[0];
-    console.log('📞 ตรวจพบเบอร์โทรศัพท์:', phoneNumber);
+    console.log('📞 ตรวจพบเบอร์โทรศัพท์สำเร็จ:', phoneNumber);
     return [
       {
         type: 'text',
@@ -274,50 +276,35 @@ function getReplyMessages(rawText) {
 }
 
 // ===============================
-// HANDLE EVENT
-// ===============================
-async function handleEvent(event) {
-  try {
-    let payload = '';
-
-    if (event.type === 'postback' && event.postback?.data) {
-      payload = event.postback.data;
-    } else if (event.type === 'message' && event.message?.type === 'text') {
-      payload = event.message.text;
-    }
-
-    if (!payload) return null;
-
-    const replyMessages = getReplyMessages(payload);
-    if (!replyMessages) return null;
-
-    return await lineClient.replyMessage({
-      replyToken: event.replyToken,
-      messages: replyMessages
-    });
-
-  } catch (error) {
-    console.error('❌ Error handling event:', error);
-    return null;
-  }
-}
-
-// ===============================
-// WEBHOOK ENDPOINT
+// WEBHOOK MIDDLEWARE & ENDPOINT
 // ===============================
 app.post('/webhook', line.middleware(config), async (req, res) => {
   try {
     const events = req.body.events || [];
-    res.status(200).json({ status: 'ok' });
+    // ตอบกลับ LINE Platform ทันทีเพื่อกัน Timeout
+    res.status(200).end();
 
-    if (events.length > 0) {
-      await Promise.allSettled(events.map(event => handleEvent(event)));
+    for (const event of events) {
+      let payload = '';
+
+      if (event.type === 'postback' && event.postback?.data) {
+        payload = event.postback.data;
+      } else if (event.type === 'message' && event.message?.type === 'text') {
+        payload = event.message.text;
+      }
+
+      if (payload) {
+        const replyMessages = getReplyMessages(payload);
+        if (replyMessages) {
+          await lineClient.replyMessage({
+            replyToken: event.replyToken,
+            messages: replyMessages
+          });
+        }
+      }
     }
   } catch (error) {
     console.error('❌ Webhook Error:', error);
-    if (!res.headersSent) {
-      res.status(200).json({ status: 'ok' });
-    }
   }
 });
 
@@ -326,9 +313,7 @@ app.post('/webhook', line.middleware(config), async (req, res) => {
 // ===============================
 app.use((err, req, res, next) => {
   console.error('❌ Server Error:', err);
-  if (!res.headersSent) {
-    res.status(200).json({ status: 'ok' });
-  }
+  res.status(200).end();
 });
 
 // ===============================
