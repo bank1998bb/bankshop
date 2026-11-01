@@ -1,14 +1,17 @@
 const express = require('express');
 const line = require('@line/bot-sdk');
 
+// ===============================
+// 🔑 ใส่ Channel Access Token และ Channel Secret ของคุณตรงนี้
+// ===============================
 const config = {
-  channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
-  channelSecret: process.env.CHANNEL_SECRET,
+  channelAccessToken: 'ใส่_Channel_Access_Token_ของคุณตรงนี้',
+  channelSecret: 'ใส่_Channel_Secret_ของคุณตรงนี้',
 };
 
 const app = express();
 
-// ใช้ SDK MessagingApiClient เวอร์ชันล่าสุด
+// ใช้ SDK MessagingApiClient เวอร์ชันปัจจุบัน
 const lineClient = new line.messagingApi.MessagingApiClient({
   channelAccessToken: config.channelAccessToken
 });
@@ -17,6 +20,7 @@ const lineClient = new line.messagingApi.MessagingApiClient({
 // DATABASE / PACKAGES DATA
 // ===============================
 const HIGHLIGHT_TEXT = 'ใช้งานได้ลื่นไหลไม่มีสะดุด เน็ตแรงเต็มสปีด';
+const APP_IMAGE_URL = 'https://i.ibb.co/k2h8DbsW/White-and-Black-Minimalist-Phone-Mockup-Your-Story-1.png';
 
 const PACKAGES = [
   {
@@ -25,7 +29,7 @@ const PACKAGES = [
     brand: 'AIS',
     price: '300',
     speed: '10 Mbps',
-    detail: 'เน็ตไม่อั้น ใช้งานได้ 100 GB (หากใช้ครบ 100 GB แล้วจะไม่สามารถใช้งานต่อได้) นาน 30 วัน',
+    detail: 'เน็ตไม่อั้น ใช้งานได้ 100 GB (หากใช้งานหมด 100 GB แล้ว จะไม่สามารถใช้งานต่อได้ในรอบนั้น) นาน 30 วัน',
     highlight: HIGHLIGHT_TEXT,
     themeColor: '#00B900' // เขียว AIS
   },
@@ -45,7 +49,7 @@ const PACKAGES = [
     brand: 'TRUE',
     price: '300',
     speed: '15 Mbps',
-    detail: 'เน็ตไม่อั้น ใช้งานได้ 100 GB (หากใช้ครบ 100 GB แล้วจะไม่สามารถใช้งานต่อได้) นาน 30 วัน',
+    detail: 'เน็ตไม่อั้น ใช้งานได้ 100 GB (หากใช้งานหมด 100 GB แล้ว จะไม่สามารถใช้งานต่อได้ในรอบนั้น) นาน 30 วัน',
     highlight: HIGHLIGHT_TEXT,
     themeColor: '#E60000' // แดง TRUE
   },
@@ -221,27 +225,44 @@ function getReplyMessages(rawText) {
   const text = normalizeText(rawText);
   console.log('🔍 ประมวลผลข้อความ:', text);
 
-  // 1. ตรวจสอบแพ็กเกจอินเทอร์เน็ต
+  // 1. ตรวจสอบเบอร์โทรศัพท์มือถือ 10 หลัก (เช่น 0812345678, 0612345678, 0912345678)
+  const phoneMatch = rawText.match(/0[689]\d{8}/);
+  if (phoneMatch) {
+    const phoneNumber = phoneMatch[0];
+    return [
+      {
+        type: 'text',
+        text: `✅ **ได้รับเบอร์โทรศัพท์ (${phoneNumber}) เรียบร้อยแล้วครับ!**\n\n📌 ขั้นตอนถัดไป: รบกวนคุณลูกค้าเข้าไปดาวน์โหลดแอปพลิเคชันตามรูปภาพด้านล่างนี้ได้เลยนะครับ`
+      },
+      {
+        type: 'image',
+        originalContentUrl: APP_IMAGE_URL,
+        previewImageUrl: APP_IMAGE_URL
+      },
+      {
+        type: 'text',
+        text: '📲 ดาวน์โหลดเสร็จเรียบร้อยแล้ว แจ้งแอดมินในแชทนี้ได้เลยนะครับ เดี๋ยวแอดมินเข้ามารับช่วงต่อให้ทันทีครับ 🙏✨'
+      }
+    ];
+  }
+
+  // 2. ตรวจสอบการสอบถามแพ็กเกจอินเทอร์เน็ต (ส่งเฉพาะ Flex Message การ์ดโปรโมชั่น)
   const matchedPackage = PACKAGES.find(pkg =>
     pkg.keywords.some(keyword => text.includes(keyword))
   );
 
   if (matchedPackage) {
     return [
-      buildPackageFlexCard(matchedPackage),
-      {
-        type: 'text',
-        text: '💡 สนใจสมัครแพ็กเกจนี้ พิมพ์ **"แจ้งเบอร์โทรศัพท์"** ไว้ในแชทได้เลยนะคะ เดี๋ยวแอดมินจะรีบดำเนินการสมัครให้ทันทีค่ะ 📱✨'
-      }
+      buildPackageFlexCard(matchedPackage)
     ];
   }
 
-  // 2. ติดต่อแอดมิน / แจ้งปัญหา
+  // 3. ติดต่อแอดมิน / แจ้งปัญหา
   if (['แอดมิน', 'admin', 'ติดต่อ', 'แจ้งปัญหา', 'เจ้าหน้าที่'].some(kw => text.includes(kw))) {
     return [
       {
         type: 'text',
-        text: '🤖 **AI Smart Assistant ยินดีให้บริการค่ะ!** 🌟\n\nรับทราบเรื่องค่ะ! คุณลูกค้าสามารถพิมพ์รายละเอียด ปัญหา หรือเบอร์โทรศัพท์ไว้ได้เลยนะคะ เดี๋ยวแอดมินตัวจริงจะรีบเข้ามาดูแลทันทีค่ะ 🛠️💬'
+        text: '🤖 **AI Smart Assistant ยินดีให้บริการครับ!** 🌟\n\nรับทราบเรื่องครับ! คุณลูกค้าสามารถพิมพ์รายละเอียด ปัญหา หรือฝากเบอร์โทรศัพท์ไว้ได้เลยนะครับ เดี๋ยวแอดมินตัวจริงจะรีบเข้ามาดูแลทันทีครับ 🛠️💬'
       }
     ];
   }
@@ -309,9 +330,9 @@ app.use((err, req, res, next) => {
 
 // ===============================
 // SERVER START
--- ===============================
+// ===============================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server connected on port ${PORT}`);
+  console.log(`🚀 Modern LINE Bot Server running on port ${PORT}`);
   console.log(`📡 Ready for Webhook events at /webhook`);
 });
