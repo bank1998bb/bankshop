@@ -213,7 +213,7 @@ function getReplyMessages(rawText) {
   // 2) กดสมัคร -> ขอเบอร์โทร
   if (text.includes('สนใจสมัคร')) {
     return withQuickReply([
-      { type: 'text', text: '🎉 ยินดีครับ! พิมพ์เบอร์โทรศัพท์ 10 หลักที่ต้องการสมัครส่งมาได้เลยครับ\nเช่น 0812345678' }
+      { type: 'text', text: '💡 หากสนใจ พิมพ์เบอร์โทรศัพท์ 10 หลักที่ต้องการสมัครส่งมาได้เลยครับ\nเช่น 0812345678' }
     ]);
   }
 
@@ -266,7 +266,7 @@ app.post('/webhook', async (req, res) => {
       // เพิ่มเพื่อนใหม่
       if (event.type === 'follow') {
         await replyMessage(event.replyToken, withQuickReply([
-          { type: 'text', text: 'ยินดีต้อนรับครับ 🎉\nเน็ตแรง ลื่นไหล ไม่สะดุด เลือกดูแพ็กเกจได้จากปุ่มด้านล่างเลยครับ' }
+          { type: 'text', text: 'ยินดีต้อนรับครับ 👋\nเน็ตแรง ลื่นไหล ไม่สะดุด เลือกดูแพ็กเกจได้จากปุ่มด้านล่างเลยครับ' }
         ]));
         continue;
       }
