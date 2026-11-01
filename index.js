@@ -7,51 +7,65 @@ const config = {
 };
 
 const app = express();
-const client = new line.Client(config);
+
+// ใช้ SDK MessagingApiClient เวอร์ชันล่าสุด
+const lineClient = new line.messagingApi.MessagingApiClient({
+  channelAccessToken: config.channelAccessToken
+});
 
 // ===============================
 // DATABASE / PACKAGES DATA
 // ===============================
+const HIGHLIGHT_TEXT = 'แรงไม่มีตก เต็ม Speed ตลอดการใช้งาน';
+
 const PACKAGES = [
   {
+    id: 'ais_300',
     keywords: ['ais 300', 'ais_300', 'ค่ายเขียว 300'],
     brand: 'AIS',
-    price: '300 บาท',
+    price: '300',
     speed: '10 Mbps',
-    detail: 'เน็ตไม่อั้น (จำกัดการใช้งาน 100 GB ถ้าใช้งานหมดแล้วคือหมดเลย) นาน 30 วัน',
-    highlight: 'ใช้งานได้ลื่นไหล คุ้มค่าโดนใจ'
+    detail: 'เน็ตไม่อั้น ใช้งานได้ 100 GB (หากใช้ครบ 100 GB แล้วจะไม่สามารถใช้งานต่อได้) นาน 30 วัน',
+    highlight: HIGHLIGHT_TEXT,
+    themeColor: '#00B900' // เขียว AIS
   },
   {
+    id: 'ais_350',
     keywords: ['ais 350', 'ais_350', 'ค่ายเขียว 350'],
     brand: 'AIS',
-    price: '350 บาท',
+    price: '350',
     speed: '10 Mbps',
     detail: 'เน็ตไม่อั้น ไม่ลดสปีด ใช้งานได้ไม่อั้น นาน 30 วัน',
-    highlight: 'สตรีมมิ่ง ดูหนัง ฟังเพลง จุใจไม่มีสะดุด'
+    highlight: HIGHLIGHT_TEXT,
+    themeColor: '#00B900'
   },
   {
+    id: 'true_300',
     keywords: ['true 300', 'true_300', 'ทรู 300'],
     brand: 'TRUE',
-    price: '300 บาท',
+    price: '300',
     speed: '15 Mbps',
-    detail: 'เน็ตไม่อั้น (จำกัดการใช้งาน 100 GB ถ้าใช้งานหมดแล้วคือหมดเลย) นาน 30 วัน',
-    highlight: 'เน็ตแรงเต็มสปีด คุ้มค่าประหยัด'
+    detail: 'เน็ตไม่อั้น ใช้งานได้ 100 GB (หากใช้ครบ 100 GB แล้วจะไม่สามารถใช้งานต่อได้) นาน 30 วัน',
+    highlight: HIGHLIGHT_TEXT,
+    themeColor: '#E60000' // แดง TRUE
   },
   {
+    id: 'true_350',
     keywords: ['true 350', 'true_350', 'ทรู 350'],
     brand: 'TRUE',
-    price: '350 บาท',
+    price: '350',
     speed: '15 Mbps',
     detail: 'เน็ตไม่อั้น ไม่ลดสปีด ใช้งานได้ไม่อั้น นาน 30 วัน',
-    highlight: 'แรงไม่มีตก เต็มอิ่มทุกความบันเทิง'
+    highlight: HIGHLIGHT_TEXT,
+    themeColor: '#E60000'
   }
 ];
 
 // ===============================
-// WEBHOOK TEST
+// WEBHOOK HEALTH CHECK
 // ===============================
 app.get('/webhook', (req, res) => {
-  res.status(200).send('OK - LINE Bot Server is running.');
+  res.status(200).send('🚀 Modern LINE Bot Server is up and running!');
 });
 
 // ===============================
@@ -63,32 +77,161 @@ function normalizeText(text) {
 }
 
 // ===============================
+// MODERN FLEX MESSAGE GENERATOR
+// ===============================
+function buildPackageFlexCard(pkg) {
+  return {
+    type: 'flex',
+    altText: `📦 แพ็กเกจสุดคุ้ม ${pkg.brand} ${pkg.price} บาท/เดือน`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: pkg.themeColor,
+        paddingAll: '20px',
+        contents: [
+          {
+            type: 'box',
+            layout: 'horizontal',
+            contents: [
+              {
+                type: 'text',
+                text: pkg.brand,
+                weight: 'bold',
+                color: '#FFFFFF',
+                size: 'xs',
+                flex: 0
+              }
+            ],
+            backgroundColor: '#00000033',
+            paddingHorizontal: '10px',
+            paddingVertical: '3px',
+            cornerRadius: '20px'
+          },
+          {
+            type: 'text',
+            text: `แพ็กเกจ ${pkg.price} บาท`,
+            weight: 'bold',
+            size: 'xxl',
+            color: '#FFFFFF',
+            margin: 'md'
+          },
+          {
+            type: 'text',
+            text: `⚡ ความเร็วสูงสุด ${pkg.speed}`,
+            size: 'md',
+            color: '#FFFFFFEE',
+            weight: 'bold',
+            margin: 'xs'
+          }
+        ]
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        paddingAll: '20px',
+        contents: [
+          {
+            type: 'box',
+            layout: 'vertical',
+            margin: 'none',
+            spacing: 'sm',
+            contents: [
+              {
+                type: 'text',
+                text: '✨ จุดเด่นแพ็กเกจ',
+                size: 'xs',
+                color: '#888888',
+                weight: 'bold'
+              },
+              {
+                type: 'text',
+                text: `🔥 ${pkg.highlight}`,
+                size: 'sm',
+                color: '#111111',
+                weight: 'bold',
+                wrap: true
+              }
+            ]
+          },
+          { type: 'separator', margin: 'lg' },
+          {
+            type: 'box',
+            layout: 'vertical',
+            margin: 'lg',
+            spacing: 'xs',
+            contents: [
+              {
+                type: 'text',
+                text: '📋 เงื่อนไขการใช้งาน',
+                size: 'xs',
+                color: '#888888',
+                weight: 'bold'
+              },
+              {
+                type: 'text',
+                text: pkg.detail,
+                size: 'sm',
+                color: '#555555',
+                wrap: true
+              }
+            ]
+          }
+        ]
+      },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'sm',
+        paddingAll: '20px',
+        contents: [
+          {
+            type: 'button',
+            style: 'primary',
+            color: pkg.themeColor,
+            height: 'sm',
+            action: {
+              type: 'message',
+              label: `สมัครแพ็กเกจ ${pkg.brand} ${pkg.price}฿`,
+              text: `สนใจสมัครแพ็กเกจ ${pkg.brand} ${pkg.price} บาท`
+            }
+          },
+          {
+            type: 'button',
+            style: 'secondary',
+            height: 'sm',
+            action: {
+              type: 'message',
+              label: 'สอบถามแอดมิน',
+              text: 'ติดต่อแอดมิน'
+            }
+          }
+        ]
+      }
+    }
+  };
+}
+
+// ===============================
 // REPLY MESSAGES GENERATOR
 // ===============================
 function getReplyMessages(rawText) {
   const text = normalizeText(rawText);
-  console.log('🔍 ข้อความหรือ Data ที่เข้ามาประมวลผล:', text);
+  console.log('🔍 ประมวลผลข้อความ:', text);
 
-  // 1. ตรวจสอบแพ็กเกจอินเทอร์เน็ตจากอาร์เรย์ข้อมูล
-  const matchedPackage = PACKAGES.find(pkg => 
+  // 1. ตรวจสอบแพ็กเกจอินเทอร์เน็ต
+  const matchedPackage = PACKAGES.find(pkg =>
     pkg.keywords.some(keyword => text.includes(keyword))
   );
 
   if (matchedPackage) {
-    const brandEmoji = matchedPackage.brand === 'AIS' ? '🟢' : '🔴';
     return [
+      buildPackageFlexCard(matchedPackage),
       {
         type: 'text',
-        text: `🤖 **AI สมาร์ท พร้อมให้บริการค่ะ!** 🌟\n\n` +
-              `${brandEmoji} **แพ็กเกจ ${matchedPackage.brand} ${matchedPackage.price}**\n` +
-              `⚡ **ความเร็วสูงสุด:** ${matchedPackage.speed}\n` +
-              `📍 **เงื่อนไข:** ${matchedPackage.detail}\n` +
-              `🚀 **จุดเด่น:** ${matchedPackage.highlight}\n\n` +
-              `💳 *ราคาเบ็ดเสร็จ ไม่มีบวกเพิ่ม*`
-      },
-      {
-        type: 'text',
-        text: `💡 **สนใจรับโปรโมชั่นนี้ แจ้งเบอร์โทรของคุณลูกค้าไว้ได้เลยนะคะ** เดี๋ยวระบบส่งต่อให้แอดมินดูแลการสมัครให้ทันทีค่ะ ✨📱`
+        text: '💡 สนใจสมัครแพ็กเกจนี้ พิมพ์ **"แจ้งเบอร์โทรศัพท์"** ไว้ในแชทได้เลยนะคะ เดี๋ยวแอดมินจะรีบดำเนินการสมัครให้ทันทีค่ะ 📱✨'
       }
     ];
   }
@@ -96,10 +239,9 @@ function getReplyMessages(rawText) {
   // 2. ติดต่อแอดมิน / แจ้งปัญหา
   if (['แอดมิน', 'admin', 'ติดต่อ', 'แจ้งปัญหา', 'เจ้าหน้าที่'].some(kw => text.includes(kw))) {
     return [
-      { 
-        type: 'text', 
-        text: `🤖 **AI สมาร์ท ยินดีให้บริการค่ะ!** 🌟\n\n` +
-              `รับทราบค่ะ! คุณลูกค้าสามารถพิมพ์แจ้งรายละเอียดหรือปัญหาที่พบไว้ได้เลยนะคะ เดี๋ยวแอดมินตัวจริงรีบเข้ามาดูแลทันทีค่ะ 🛠️💬` 
+      {
+        type: 'text',
+        text: '🤖 **AI Smart Assistant ยินดีให้บริการค่ะ!** 🌟\n\nรับทราบเรื่องค่ะ! คุณลูกค้าสามารถพิมพ์รายละเอียด ปัญหา หรือเบอร์โทรศัพท์ไว้ได้เลยนะคะ เดี๋ยวแอดมินตัวจริงจะรีบเข้ามาดูแลทันทีค่ะ 🛠️💬'
       }
     ];
   }
@@ -125,7 +267,10 @@ async function handleEvent(event) {
     const replyMessages = getReplyMessages(payload);
     if (!replyMessages) return null;
 
-    return await client.replyMessage(event.replyToken, replyMessages);
+    return await lineClient.replyMessage({
+      replyToken: event.replyToken,
+      messages: replyMessages
+    });
 
   } catch (error) {
     console.error('❌ Error handling event:', error);
@@ -167,6 +312,6 @@ app.use((err, req, res, next) => {
 // ===============================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 LINE Bot Server running on port ${PORT}`);
-  console.log(`📡 Webhook Endpoint: /webhook`);
+  console.log(`🚀 Server connected on port ${PORT}`);
+  console.log(`📡 Ready for Webhook events at /webhook`);
 });
