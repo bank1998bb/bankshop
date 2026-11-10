@@ -1,13 +1,4 @@
-{
-  "name": "bankshop-line-bot",
-  "version": "1.0.0",
-  "private": true,
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "dependencies": {
-    "@line/bot-sdk": "^9.5.0",
+"dependencies": {
+    "axios": "^1.7.9",
     "express": "^4.21.2"
   }
-}
