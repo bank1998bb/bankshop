@@ -61,10 +61,19 @@ async function handleEvent(event) {
     return;
   }
 
+  // เพิ่มเงื่อนไขติดต่อแอดมิน
+  if (/ติดต่อแอดมิน|แอดมิน|admin|help|ช่วยเหลือ/i.test(text)) {
+    await replyMessage(
+      replyToken,
+      'ลูกค้าสามารถแจ้งรายละเอียดหรือพิมพ์ปัญหาที่พบไว้ได้เลยครับ เดี๋ยวแอดมินจะเข้าดูแลทันทีครับ'
+    );
+    return;
+  }
+
   if (/^(สวัสดี|หวัดดี|เริ่ม|เมนู|แพ็กเกจ|โปรโมชั่น)$/i.test(text)) {
     await replyMessage(
       replyToken,
-      'ยินดีต้อนรับ BANKSHOP ครับ 😊\n\nเลือกดูแพ็กเกจได้โดยพิมพ์:\n• AIS 300\n• AIS 350\n• TRUE 300\n• TRUE 350'
+      'ยินดีต้อนรับ BANKSHOP ครับ 😊\n\nเลือกดูแพ็กเกจได้โดยพิมพ์:\n• AIS 300\n• AIS 350\n• TRUE 300\n• TRUE 350\n\nหรือพิมพ์ "ติดต่อแอดมิน" เพื่อแจ้งปัญหาได้เลยครับ'
     );
     return;
   }
@@ -76,12 +85,12 @@ async function handleEvent(event) {
       pendingSignup.add(userId);
       await replyMessage(
         replyToken,
-        `สนใจสมัครแพ็กเกจ ${selected.key} ใช่ไหมครับ 😊\n\nกรุณาส่งเบอร์โทรศัพท์ 10 หลักที่ต้องการสมัครครับ`
+        `สนใจแพ็กเกจ ${selected.key} ใช่ไหมครับ 😊\n\nกรุณาส่งเบอร์โทรศัพท์ 10 หลักที่ต้องการสมัครครับ`
       );
     } else {
       await replyMessage(
         replyToken,
-        `📱 แพ็กเกจ ${selected.key}\n\n💰 ราคา ${selected.price} บาท\n🚀 ความเร็ว ${selected.speed}\n📶 ปริมาณเน็ต ${selected.data}\n🗓️ ระยะเวลา ${selected.validity}\n\nหากสนใจ พิมพ์ "สมัคร ${selected.key}" ได้เลยครับ`
+        `📱 แพ็กเกจ ${selected.key}\n\n💰 ราคา ${selected.price} บาท\n🚀 ความเร็ว ${selected.speed}\n📶 ปริมาณเน็ต ${selected.data}\n🗓️ ระยะเวลา ${selected.validity}\n\nหากสนใจแจ้งเบอร์แล้วรอแอดมินทำรายการได้เลยครับ`
       );
     }
     return;
