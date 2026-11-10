@@ -1,14 +1,12 @@
 'use strict';
 
-const express = typeRequire('express');
-// ไม่ใช้ line/bot-sdk เพื่อตัดปัญหาเรื่อง Token และ Signature Verification
-const axios = require('axios'); // ต้องลง axios เพิ่ม หรือจะใช้ fetch ในตัว Node.js ก็ได้ครับ
+const express = require('express');
+const axios = require('axios');
 
 const app = express();
 
-// ใส่ Channel Access Token ตรงนี้ได้เลย (เผื่อเวลาบอทต้องส่งข้อความกลับหาลูกค้า)
-// หรือจะเว้นว่างไว้ก่อนก็ได้ถ้าแค่อยากเทสรับ Webhook
-const CHANNEL_ACCESS_TOKEN = process.env.CHANNEL_ACCESS_TOKEN || 'ใส่_Token_ของคุณตรงนี้';
+// ใส่ Channel Access Token ที่คุณให้มาเรียบร้อยแล้ว พร้อมทำงานทันที
+const CHANNEL_ACCESS_TOKEN = 'sS4kjfKeiTz9FujmF3JMltwqfeZZdgERTBWdD32T4pzh0T2nsVAcd+NkM8qfbreAnt2iAIRsIAFVKNwnQj2VtYVCwKZYuDpy85K/Esz65da/Biqr/ZDt+CwJ9z0VCxM07WMc4ti4/kye8oZvlVEYYwdB04t89/1O/w1cDnyilFU=';
 
 // รายละเอียดแพ็กเกจ
 const packages = [
@@ -21,13 +19,8 @@ const packages = [
 // เก็บสถานะลูกค้าที่กำลังสมัคร
 const pendingSignup = new Set();
 
-// ฟังก์ชันส่งข้อความกลับผ่าน LINE Messaging API โดยตรง
+// ฟังก์ชันส่งข้อความกลับผ่าน LINE Messaging API
 async function replyMessage(replyToken, textMessage) {
-  if (!CHANNEL_ACCESS_TOKEN || CHANNEL_ACCESS_TOKEN === 'ใส่_Token_ของคุณตรงนี้') {
-    console.log('⚠️ ยังไม่ได้ใส่ Channel Access Token บอทจะไม่สามารถส่งข้อความตอบกลับได้ แต่รับ Webhook ได้ปกติ');
-    return;
-  }
-
   try {
     await axios.post(
       'https://api.line.me/v2/bot/message/reply',
@@ -117,7 +110,7 @@ async function handleEvent(event) {
   );
 }
 
-// ตั้งค่าให้ Express รองรับ JSON Body เพื่อรับ Webhook โดยตรง
+// ตั้งค่า Express รับ JSON
 app.use(express.json());
 
 // เช็คสถานะเซิร์ฟเวอร์
@@ -129,14 +122,11 @@ app.get('/webhook', (req, res) => {
   res.status(200).send('LINE WEBHOOK READY');
 });
 
-// จุดรับ Webhook จาก LINE (ไม่มีการตรวจ Signature หรือ Token ซับซ้อน รับตรงๆ ได้เลย)
+// จุดรับ Webhook จาก LINE
 app.post('/webhook', async (req, res) => {
-  // ตอบกลับ LINE ทันที 200 OK เพื่อไม่ให้ระบบ LINE Timeout
   res.status(200).json({ status: 'ok' });
 
   const events = req.body.events || [];
-  console.log('Received events:', events.length);
-
   for (const event of events) {
     try {
       await handleEvent(event);
@@ -148,5 +138,4 @@ app.post('/webhook', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`SERVER RUNNING ON PORT ${PORT}`);
-});
+  console
