@@ -5,10 +5,8 @@ const axios = require('axios');
 
 const app = express();
 
-// ใส่ Channel Access Token ที่คุณให้มาเรียบร้อยแล้ว พร้อมทำงานทันที
 const CHANNEL_ACCESS_TOKEN = 'sS4kjfKeiTz9FujmF3JMltwqfeZZdgERTBWdD32T4pzh0T2nsVAcd+NkM8qfbreAnt2iAIRsIAFVKNwnQj2VtYVCwKZYuDpy85K/Esz65da/Biqr/ZDt+CwJ9z0VCxM07WMc4ti4/kye8oZvlVEYYwdB04t89/1O/w1cDnyilFU=';
 
-// รายละเอียดแพ็กเกจ
 const packages = [
   { key: 'AIS 300', price: 300, speed: '10 Mbps', data: '100 GB', validity: '30 วัน' },
   { key: 'AIS 350', price: 350, speed: '10 Mbps', data: 'ไม่อั้น ไม่ลดความเร็ว', validity: '30 วัน' },
@@ -16,10 +14,8 @@ const packages = [
   { key: 'TRUE 350', price: 350, speed: '15 Mbps', data: 'ไม่อั้น ไม่ลดความเร็ว', validity: '30 วัน' }
 ];
 
-// เก็บสถานะลูกค้าที่กำลังสมัคร
 const pendingSignup = new Set();
 
-// ฟังก์ชันส่งข้อความกลับผ่าน LINE Messaging API
 async function replyMessage(replyToken, textMessage) {
   try {
     await axios.post(
@@ -52,7 +48,6 @@ async function handleEvent(event) {
   const upperText = text.toUpperCase();
   const replyToken = event.replyToken;
 
-  // ตรวจสอบว่าลูกค้ากำลังส่งเบอร์โทรหรือไม่
   if (pendingSignup.has(userId)) {
     if (/^[0-9]{10}$/.test(text)) {
       pendingSignup.delete(userId);
@@ -66,7 +61,6 @@ async function handleEvent(event) {
     return;
   }
 
-  // เมนูเริ่มต้น
   if (/^(สวัสดี|หวัดดี|เริ่ม|เมนู|แพ็กเกจ|โปรโมชั่น)$/i.test(text)) {
     await replyMessage(
       replyToken,
@@ -75,7 +69,6 @@ async function handleEvent(event) {
     return;
   }
 
-  // ตรวจสอบแพ็กเกจ
   const selected = packages.find(pkg => upperText.includes(pkg.key));
 
   if (selected) {
@@ -94,7 +87,6 @@ async function handleEvent(event) {
     return;
   }
 
-  // ลูกค้าพิมพ์คำว่า สมัคร/สนใจ แต่ยังไม่ได้ระบุแพ็กเกจ
   if (/สมัคร|สนใจ/.test(text)) {
     await replyMessage(
       replyToken,
@@ -103,17 +95,14 @@ async function handleEvent(event) {
     return;
   }
 
-  // ข้อความอื่น ๆ
   await replyMessage(
     replyToken,
     'ขออภัยครับ ยังไม่เข้าใจข้อความนี้ 😅\n\nพิมพ์ "เมนู" เพื่อดูแพ็กเกจทั้งหมดครับ'
   );
 }
 
-// ตั้งค่า Express รับ JSON
 app.use(express.json());
 
-// เช็คสถานะเซิร์ฟเวอร์
 app.get('/', (req, res) => {
   res.status(200).send('BANKSHOP WEBHOOK SERVER RUNNING');
 });
@@ -122,7 +111,6 @@ app.get('/webhook', (req, res) => {
   res.status(200).send('LINE WEBHOOK READY');
 });
 
-// จุดรับ Webhook จาก LINE
 app.post('/webhook', async (req, res) => {
   res.status(200).json({ status: 'ok' });
 
@@ -138,4 +126,5 @@ app.post('/webhook', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console
+  console.log(`SERVER RUNNING ON PORT ${PORT}`);
+});
