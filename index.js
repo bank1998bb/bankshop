@@ -1,4 +1,3 @@
-
 'use strict';
 
 const express = require('express');
@@ -54,11 +53,7 @@ const packages = [
 const pendingSignup = new Set();
 
 async function handleEvent(event) {
-  if (
-    event.type !== 'message' ||
-    !event.message ||
-    event.message.type !== 'text'
-  ) {
+  if (event.type !== 'message' || !event.message || event.message.type !== 'text') {
     return;
   }
 
@@ -82,33 +77,29 @@ async function handleEvent(event) {
     } else {
       await client.replyMessage(event.replyToken, {
         type: 'text',
-        text: 'กรุณาส่งเบอร์โทรศัพท์ 10 หลักครับ'
+        text: 'กรุณาส่งเบอร์โทรศัพท์ 10 หลักครับ (เฉพาะตัวเลข)'
       });
     }
     return;
   }
 
   // เมนูเริ่มต้น
-  if (
-    /^(สวัสดี|หวัดดี|เริ่ม|เมนู|แพ็กเกจ|โปรโมชั่น)$/i.test(text)
-  ) {
+  if (/^(สวัสดี|หวัดดี|เริ่ม|เมนู|แพ็กเกจ|โปรโมชั่น)$/i.test(text)) {
     await client.replyMessage(event.replyToken, {
       type: 'text',
       text:
         'ยินดีต้อนรับ BANKSHOP ครับ 😊\n\n' +
         'เลือกดูแพ็กเกจได้โดยพิมพ์:\n' +
-        'AIS 300\n' +
-        'AIS 350\n' +
-        'TRUE 300\n' +
-        'TRUE 350'
+        '• AIS 300\n' +
+        '• AIS 350\n' +
+        '• TRUE 300\n' +
+        '• TRUE 350'
     });
     return;
   }
 
   // ตรวจสอบแพ็กเกจ
-  const selected = packages.find(pkg =>
-    upperText.includes(pkg.key)
-  );
+  const selected = packages.find(pkg => upperText.includes(pkg.key));
 
   if (selected) {
     if (/สมัคร|สนใจ/.test(text)) {
@@ -135,7 +126,7 @@ async function handleEvent(event) {
     return;
   }
 
-  // ลูกค้าสนใจแต่ยังไม่ได้เลือกแพ็กเกจ
+  // ลูกค้าพิมพ์คำว่า สมัคร/สนใจ แต่ยังไม่ได้ระบุแพ็กเกจ
   if (/สมัคร|สนใจ/.test(text)) {
     await client.replyMessage(event.replyToken, {
       type: 'text',
@@ -159,7 +150,7 @@ async function handleEvent(event) {
   });
 }
 
-// ตรวจสอบว่าเซิร์ฟเวอร์ทำงานหรือไม่
+// ตรวจสอบสถานะ Server พื้นฐาน
 app.get('/', (req, res) => {
   res.status(200).send('BANKSHOP LINE BOT SERVER RUNNING');
 });
@@ -168,32 +159,34 @@ app.get('/webhook', (req, res) => {
   res.status(200).send('LINE WEBHOOK READY');
 });
 
-// LINE Webhook
-app.post('/webhook', line.middleware(config), (req, res) => {
-  const events = req.body.events || [];
+// LINE Webhook Endpoint (ห้ามใช้ express.json() ครอบตัว webhook นี้เด็ดขาด)
+app.post('/webhook', line.middleware(config), async (req, res) => {
+  try {
+    const events = req.body.events || [];
+    
+    // ตอบกลับ LINE Platform ทันทีด้วย Status 200 เพื่อป้องกัน Timeout
+    res.status(200).json({ status: 'ok' });
 
-  // ตอบ LINE ทันที
-  res.status(200).json({ status: 'ok' });
-
-  // ประมวลผลข้อความหลังจากตอบ Webhook แล้ว
-  Promise.allSettled(
-    events.map(event => handleEvent(event))
-  ).then(results => {
-    results.forEach((result, index) => {
-      if (result.status === 'rejected') {
-        console.error(
-          'Event processing failed:',
-          index,
-          result.reason
-        );
-      }
-    });
-  });
+    // ประมวลผลแต่ละ Event
+    await Promise.all(
+      events.map(async (event) => {
+        try {
+          await handleEvent(event);
+        } catch (err) {
+          console.error('Error handling individual event:', err.originalError?.response?.data || err);
+        }
+      })
+    );
+  } catch (err) {
+    console.error('Webhook error:', err);
+    if (!res.headersSent) {
+      res.status(500).end();
+    }
+  }
 });
 
 // เปิดเซิร์ฟเวอร์
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
   console.log(`BANKSHOP BOT RUNNING ON PORT ${PORT}`);
 });
