@@ -61,7 +61,7 @@ async function handleEvent(event) {
     return;
   }
 
-  // เพิ่มเงื่อนไขติดต่อแอดมิน
+  // เงื่อนไขติดต่อแอดมิน
   if (/ติดต่อแอดมิน|แอดมิน|admin|help|ช่วยเหลือ/i.test(text)) {
     await replyMessage(
       replyToken,
@@ -104,10 +104,8 @@ async function handleEvent(event) {
     return;
   }
 
-  await replyMessage(
-    replyToken,
-    'ขออภัยครับ ยังไม่เข้าใจข้อความนี้ 😅\n\nพิมพ์ "เมนู" เพื่อดูแพ็กเกจทั้งหมดครับ'
-  );
+  // นอกเหนือจากเงื่อนไขด้านบน จะไม่ตอบกลับข้อความใดๆ ทั้งสิ้น (ตัดข้อความขออภัยออกแล้ว)
+  return;
 }
 
 app.use(express.json());
