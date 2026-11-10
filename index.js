@@ -1,12 +1,7 @@
-
 'use strict';
 
 const express = require('express');
 const line = require('@line/bot-sdk');
-
-// ==========================================
-// CONFIGURATION
-// ==========================================
 
 const config = {
   channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
@@ -14,16 +9,12 @@ const config = {
 };
 
 if (!config.channelAccessToken || !config.channelSecret) {
-  console.error('❌ ไม่พบ CHANNEL_ACCESS_TOKEN หรือ CHANNEL_SECRET');
+  console.error('ERROR: กรุณาตั้งค่า CHANNEL_ACCESS_TOKEN และ CHANNEL_SECRET');
   process.exit(1);
 }
 
 const app = express();
 const client = new line.Client(config);
-
-// ==========================================
-// PACKAGE DATABASE
-// ==========================================
 
 const PACKAGES = [
   {
@@ -33,7 +24,8 @@ const PACKAGES = [
     speed: '10 Mbps',
     detail: 'จำกัดปริมาณการใช้งาน 100 GB เมื่อใช้งานครบแล้วจะไม่สามารถใช้งานต่อได้',
     duration: '30 วัน',
-    highlight: 'ใช้งานทั่วไปได้ลื่นไหล คุ้มค่าประหยัด'
+    highlight: 'ใช้งานทั่วไปได้ลื่นไหล คุ้มค่าประหยัด',
+    dataLimit: '100 GB'
   },
   {
     keywords: ['ais 350', 'ais_350', 'ais350', 'ค่ายเขียว 350'],
@@ -42,7 +34,8 @@ const PACKAGES = [
     speed: '10 Mbps',
     detail: 'เน็ตไม่อั้น ไม่ลดความเร็ว ใช้งานได้ไม่จำกัด',
     duration: '30 วัน',
-    highlight: 'ดูหนัง ฟังเพลง เล่น TikTok และใช้งานโซเชียลได้ต่อเนื่อง'
+    highlight: 'ดูหนัง ฟังเพลง เล่น TikTok และใช้งานโซเชียลได้ต่อเนื่อง',
+    dataLimit: 'ไม่จำกัด'
   },
   {
     keywords: ['true 300', 'true_300', 'true300', 'ทรู 300', 'ทรู300'],
@@ -51,7 +44,8 @@ const PACKAGES = [
     speed: '15 Mbps',
     detail: 'จำกัดปริมาณการใช้งาน 100 GB เมื่อใช้งานครบแล้วจะไม่สามารถใช้งานต่อได้',
     duration: '30 วัน',
-    highlight: 'อินเทอร์เน็ตความเร็วสูง คุ้มค่าประหยัด'
+    highlight: 'อินเทอร์เน็ตความเร็วสูง คุ้มค่าประหยัด',
+    dataLimit: '100 GB'
   },
   {
     keywords: ['true 350', 'true_350', 'true350', 'ทรู 350', 'ทรู350'],
@@ -60,13 +54,10 @@ const PACKAGES = [
     speed: '15 Mbps',
     detail: 'เน็ตไม่อั้น ไม่ลดความเร็ว ใช้งานได้ไม่จำกัด',
     duration: '30 วัน',
-    highlight: 'เล่นเกม ดูหนัง ฟังเพลง และใช้งานออนไลน์ได้ต่อเนื่อง'
+    highlight: 'เล่นเกม ดูหนัง ฟังเพลง และใช้งานออนไลน์ได้ต่อเนื่อง',
+    dataLimit: 'ไม่จำกัด'
   }
 ];
-
-// ==========================================
-// NORMALIZE TEXT
-// ==========================================
 
 function normalizeText(value) {
   return String(value || '')
@@ -75,10 +66,6 @@ function normalizeText(value) {
     .replace(/[_-]/g, ' ')
     .replace(/\s+/g, ' ');
 }
-
-// ==========================================
-// FIND PACKAGE
-// ==========================================
 
 function findPackage(rawText) {
   const text = normalizeText(rawText);
@@ -93,20 +80,15 @@ function findPackage(rawText) {
   );
 }
 
-// ==========================================
-// PACKAGE FLEX MESSAGE
-// ==========================================
-
 function createPackageFlex(pkg) {
-  const isAIS = pkg.brand === 'AIS';
-  const brandColor = isAIS ? '#16A34A' : '#DC2626';
+  const brandColor = pkg.brand === 'AIS' ? '#16A34A' : '#DC2626';
 
   const sections = [
     {
       title: '📶 รายละเอียดอินเทอร์เน็ต',
       items: [
         `ความเร็วสูงสุด ${pkg.speed}`,
-        `ปริมาณอินเทอร์เน็ต: ${pkg.price === '350 บาท' ? 'ไม่จำกัด' : '100 GB'}`,
+        `ปริมาณอินเทอร์เน็ต ${pkg.dataLimit}`,
         `ระยะเวลาใช้งาน ${pkg.duration}`
       ]
     },
@@ -130,15 +112,14 @@ function createPackageFlex(pkg) {
       title: '📌 เงื่อนไขการใช้งาน',
       items: [
         pkg.detail,
-        'ความเร็วจริงขึ้นอยู่กับพื้นที่และสัญญาณเครือข่าย',
-        `ใช้งานได้นาน ${pkg.duration}`
+        'ความเร็วจริงขึ้นอยู่กับพื้นที่และสัญญาณเครือข่าย'
       ]
     }
   ];
 
   const sectionContents = [];
 
-  sections.forEach(section => {
+  for (const section of sections) {
     sectionContents.push({
       type: 'text',
       text: section.title,
@@ -149,7 +130,7 @@ function createPackageFlex(pkg) {
       margin: 'lg'
     });
 
-    section.items.forEach(item => {
+    for (const item of section.items) {
       sectionContents.push({
         type: 'text',
         text: `• ${item}`,
@@ -158,8 +139,8 @@ function createPackageFlex(pkg) {
         wrap: true,
         margin: 'sm'
       });
-    });
-  });
+    }
+  }
 
   return {
     type: 'flex',
@@ -167,7 +148,6 @@ function createPackageFlex(pkg) {
     contents: {
       type: 'bubble',
       size: 'mega',
-
       header: {
         type: 'box',
         layout: 'vertical',
@@ -198,7 +178,6 @@ function createPackageFlex(pkg) {
           }
         ]
       },
-
       body: {
         type: 'box',
         layout: 'vertical',
@@ -232,7 +211,6 @@ function createPackageFlex(pkg) {
           ...sectionContents
         ]
       },
-
       footer: {
         type: 'box',
         layout: 'vertical',
@@ -265,23 +243,12 @@ function createPackageFlex(pkg) {
   };
 }
 
-// ==========================================
-// PACKAGE MENU
-// ==========================================
-
 function getPackageMenu() {
   return {
     type: 'text',
     text:
       '🤖 ยินดีต้อนรับสู่ร้านของเราค่ะ 💚\n\n' +
-      '📱 เลือกดูรายละเอียดโปรโมชั่นที่สนใจได้เลยค่ะ\n\n' +
-      '🟢 AIS\n' +
-      '• AIS 300 บาท\n' +
-      '• AIS 350 บาท\n\n' +
-      '🔴 TRUE\n' +
-      '• TRUE 300 บาท\n' +
-      '• TRUE 350 บาท\n\n' +
-      '👇 กดเลือกแพ็กเกจด้านล่างได้เลยค่ะ',
+      'เลือกแพ็กเกจที่สนใจเพื่อดูรายละเอียดได้เลยค่ะ',
     quickReply: {
       items: [
         {
@@ -321,110 +288,103 @@ function getPackageMenu() {
   };
 }
 
-// ==========================================
-// REPLY MESSAGE GENERATOR
-// ==========================================
-
 function getReplyMessages(rawText) {
   const text = normalizeText(rawText);
+  console.log('Incoming LINE message:', text);
 
-  console.log('🔍 Incoming:', text);
+  // ตรวจคำสั่งสมัครก่อนค้นหาแพ็กเกจ
+  if (text.includes('สนใจสมัคร')) {
+    const pkg = findPackage(text);
 
-  // 1. ตรวจสอบแพ็กเกจ
+    return [{
+      type: 'text',
+      text:
+        `ขอบคุณที่สนใจ ${pkg ? `${pkg.brand} ${pkg.price}` : 'โปรโมชั่นของทางร้าน'} ค่ะ 🎉\n\n` +
+        'กรุณาส่งเบอร์โทรศัพท์ที่ต้องการสมัครไว้ได้เลยค่ะ\n' +
+        'แอดมินจะตรวจสอบแพ็กเกจและติดต่อกลับเพื่อดำเนินการสมัครค่ะ 📱'
+    }];
+  }
+
   const pkg = findPackage(text);
 
   if (pkg) {
     return [createPackageFlex(pkg)];
   }
 
-  // 2. สมัครแพ็กเกจ
-  if (text.includes('สนใจสมัคร')) {
-    return [{
-      type: 'text',
-      text:
-        '🎉 ขอบคุณที่สนใจโปรโมชั่นของทางร้านค่ะ\n\n' +
-        '📱 กรุณาแจ้งข้อมูลดังนี้\n' +
-        '1. เบอร์โทรศัพท์ที่ต้องการสมัคร\n' +
-        '2. เครือข่าย AIS หรือ TRUE\n' +
-        '3. แพ็กเกจที่สนใจ\n\n' +
-        'แอดมินจะเข้ามาตรวจสอบและดูแลการสมัครให้ค่ะ 💚'
-    }];
-  }
-
-  // 3. แสดงโปรโมชั่นทั้งหมด
   if (
-    ['โปรโมชั่น', 'โปรเน็ต', 'แพ็กเกจ',
-     'แพคเกจ', 'ราคา', 'ดูโปร', 'โปร']
+    ['โปรโมชั่น', 'โปรเน็ต', 'แพ็กเกจ', 'แพคเกจ', 'ราคา', 'ดูโปร', 'โปร']
       .some(keyword => text.includes(keyword))
   ) {
     return [getPackageMenu()];
   }
 
-  // 4. ติดต่อแอดมิน
   if (
-    ['แอดมิน', 'admin', 'ติดต่อ',
-     'แจ้งปัญหา', 'เจ้าหน้าที่', 'สอบถาม']
+    ['แอดมิน', 'admin', 'ติดต่อ', 'แจ้งปัญหา', 'เจ้าหน้าที่', 'สอบถาม']
       .some(keyword => text.includes(keyword))
   ) {
     return [{
       type: 'text',
       text:
         '🛠️ ยินดีให้บริการค่ะ\n\n' +
-        'คุณลูกค้าสามารถพิมพ์รายละเอียดหรือแจ้งปัญหาไว้ได้เลยนะคะ\n\n' +
-        'แอดมินจะเข้ามาตรวจสอบและดูแลให้เร็วที่สุดค่ะ 💬'
+        'พิมพ์รายละเอียดหรือแจ้งปัญหาที่พบไว้ได้เลยนะคะ\n' +
+        'แอดมินจะเข้ามาตรวจสอบและดูแลให้ค่ะ 💬'
     }];
   }
 
-  // 5. ข้อความทั่วไป
   return [{
     type: 'text',
     text:
       'สวัสดีค่ะ ยินดีต้อนรับสู่ร้านของเราค่ะ 💚\n\n' +
-      'พิมพ์คำว่า โปรโมชั่น เพื่อดูแพ็กเกจทั้งหมด\n\n' +
-      '🟢 AIS 300 / AIS 350\n' +
-      '🔴 TRUE 300 / TRUE 350\n\n' +
-      'หรือพิมพ์ ติดต่อแอดมิน เพื่อสอบถามเพิ่มเติมค่ะ 😊'
+      'พิมพ์คำว่า “โปรโมชั่น” เพื่อดูแพ็กเกจทั้งหมด\n' +
+      'หรือพิมพ์ AIS 300, AIS 350, TRUE 300 หรือ TRUE 350\n' +
+      'เพื่อดูรายละเอียดแพ็กเกจได้เลยค่ะ'
   }];
 }
 
-// ==========================================
-// HANDLE EVENT
-// ==========================================
-
 async function handleEvent(event) {
-  if (!event.replyToken) return;
-
-  // ข้อความ
-  let payload = '';
-
-  if (event.type === 'message' && event.message?.type === 'text') {
-    payload = event.message.text;
-  }
-
-  // Postback
-  else if (event.type === 'postback' && event.postback?.data) {
-    payload = event.postback.data;
-  }
-
-  else {
+  if (
+    !event.replyToken ||
+    event.replyToken === '00000000000000000000000000000000'
+  ) {
+    console.log('Skip event: missing/invalid reply token');
     return;
   }
 
+  let payload = '';
+
+  if (
+    event.type === 'message' &&
+    event.message &&
+    event.message.type === 'text'
+  ) {
+    payload = event.message.text;
+  } else if (
+    event.type === 'postback' &&
+    event.postback &&
+    event.postback.data
+  ) {
+    payload = event.postback.data;
+  } else {
+    console.log('Skip unsupported event:', event.type);
+    return;
+  }
+
+  const messages = getReplyMessages(payload);
+
   try {
-    const messages = getReplyMessages(payload);
-
-    await client.replyMessage(event.replyToken, messages);
-
-    console.log('✅ Reply successful');
-
+    const result = await client.replyMessage(event.replyToken, messages);
+    console.log('LINE reply sent successfully:', result);
   } catch (error) {
-    console.error('❌ Reply Error:', error.message || error);
+    console.error('LINE reply failed:', {
+      message: error.message,
+      statusCode: error.statusCode,
+      response: error.originalError &&
+        error.originalError.response
+        ? error.originalError.response.data
+        : undefined
+    });
   }
 }
-
-// ==========================================
-// SERVER HEALTH CHECK
-// ==========================================
 
 app.get('/', (req, res) => {
   res.status(200).send('LINE BOT SERVER RUNNING');
@@ -434,53 +394,33 @@ app.get('/webhook', (req, res) => {
   res.status(200).send('OK - LINE WEBHOOK READY');
 });
 
-// ==========================================
-// LINE WEBHOOK
-// ==========================================
+// LINE middleware ใช้ตรวจสอบลายเซ็น Webhook
+app.post('/webhook', line.middleware(config), async (req, res) => {
+  const events = (req.body && req.body.events) || [];
 
-app.post('/webhook', line.middleware(config), (req, res) => {
-  const events = req.body.events || [];
+  try {
+    await Promise.allSettled(
+      events.map(event => handleEvent(event))
+    );
 
-  // ตอบ LINE ก่อน ป้องกัน webhook timeout
-  res.status(200).json({ status: 'ok' });
-
-  // ประมวลผลข้อความ
-  Promise.allSettled(
-    events.map(event => handleEvent(event))
-  ).then(results => {
-    results.forEach(result => {
-      if (result.status === 'rejected') {
-        console.error('❌ Event Error:', result.reason);
-      }
-    });
-  });
+    return res.status(200).json({ status: 'ok' });
+  } catch (error) {
+    console.error('Webhook processing error:', error);
+    return res.status(500).json({ status: 'error' });
+  }
 });
 
-// ==========================================
-// ERROR HANDLER
-// ==========================================
-
 app.use((err, req, res, next) => {
-  console.error('❌ Server Error:', err.message || err);
+  console.error('Express error:', err.message || err);
 
   if (!res.headersSent) {
     res.status(err.status || 500).send('Internal Server Error');
   }
 });
 
-// ==========================================
-// START SERVER
-// ==========================================
-
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log('================================');
-  console.log('🚀 LINE BOT SERVER STARTED');
-  console.log(`📡 PORT: ${PORT}`);
-  console.log('🔗 WEBHOOK: /webhook');
-  console.log('🟢 AIS PACKAGE: READY');
-  console.log('🔴 TRUE PACKAGE: READY');
-  console.log('🤖 FLEX MESSAGE: READY');
-  console.log('================================');
+  console.log(`LINE Bot is running on port ${PORT}`);
+  console.log('Webhook endpoint: /webhook');
 });
